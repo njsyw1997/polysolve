@@ -269,10 +269,10 @@ if(POLYSOLVE_WITH_TESTS)
     include(catch2)
     FetchContent_GetProperties(catch2)
     include("${catch2_SOURCE_DIR}/contrib/Catch.cmake")
-
     add_subdirectory(tests)
+    if(POLYSOLVE_WITH_CUDA)
+        add_subdirectory(cudatest)
+    endif()
 endif()
 
-if(POLYSOLVE_WITH_CUDA)
-    add_subdirectory(cudatest)
-endif()
+
