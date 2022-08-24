@@ -14,6 +14,8 @@ set(SOURCES
     polysolve/LinearSolverPardiso.hpp
     polysolve/SaddlePointSolver.cpp
     polysolve/SaddlePointSolver.hpp
+    polysolve/LinearSolverCatamari.hpp
+    polysolve/LinearSolverCatamari.cpp
 )
 
 polysolve_prepend_current_path(SOURCES)

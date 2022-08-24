@@ -41,6 +41,7 @@ option(POLYSOLVE_WITH_MKL           "Enable MKL library"                        
 option(POLYSOLVE_WITH_PARDISO       "Enable Pardiso library"                     OFF)
 option(POLYSOLVE_WITH_HYPRE         "Enable hypre"                                ON)
 option(POLYSOLVE_WITH_AMGCL         "Use AMGCL"                                   ON)
+option(POLYSOLVE_WITH_CATAMARI      "Enable Catamari"                             ON)
 option(POLYSOLVE_WITH_SPECTRA       "Enable computing spectrum"                   ON)
 # Sanitizer options
 option(POLYSOLVE_SANITIZE_ADDRESS   "Sanitize Address"                           OFF)
@@ -54,6 +55,7 @@ option(POLYSOLVE_WITH_TESTS         "Build unit-tests" ${POLYSOLVE_TOPLEVEL_PROJ
 include(CMakeDependentOption)
 cmake_dependent_option(SUITE_SPARSE_WITH_MKL "Build SuiteSparse using MKL" ON "POLYSOLVE_WITH_MKL" OFF)
 cmake_dependent_option(EIGEN_WITH_MKL "Use Eigen with MKL" ON "POLYSOLVE_WITH_MKL" OFF)
+cmake_dependent_option(CATAMARI_WITH_MKL "Use Catamari with MKL" ON "POLYSOLVE_WITH_MKL" OFF)
 
 # Set default minimum C++ standard
 if(POLYSOLVE_TOPLEVEL_PROJECT)
@@ -194,6 +196,62 @@ if(POLYSOLVE_WITH_AMGCL)
     include(amgcl)
     target_link_libraries(polysolve PUBLIC amgcl::amgcl)
     target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_AMGCL)
+endif()
+
+# Catamari solver
+if(POLYSOLVE_WITH_CATAMARI)
+    include(catamari)
+    target_include_directories(polysolve PUBLIC ${catamari_SOURCE_DIR}/include)
+    target_include_directories(polysolve PUBLIC ${mantis_SOURCE_DIR}/include)
+    target_include_directories(polysolve PUBLIC ${quotient_SOURCE_DIR}/include)
+    target_compile_definitions(polysolve PUBLIC -DMANTIS_GCC_FUSED_MULTIPLY_ADD)
+    target_compile_definitions(polysolve PUBLIC -DQUOTIENT_USE_64BIT)  
+    target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_XMMINTRIN) 
+    target_compile_definitions(polysolve PUBLIC --DCATAMARI_OPENMP)     
+
+    # target_compile_definitions(polysolve PUBLIC -DQUOTIENT_DEBUG)  
+    # target_compile_definitions(polysolve PUBLIC -DCATAMARI_DEBUG)     
+    # To do: Support MKL
+    
+    # if(CATAMARI_WITH_MKL)
+    #     set(BLA_VENDOR Intel10_64lp)
+    #     find_package(BLAS)
+    #     find_package(LAPACK)
+    #     target_link_libraries(polysolve PUBLIC BLAS::BLAS)
+    #     target_link_libraries(polysolve PUBLIC LAPACK::LAPACK)
+    #     target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_BLAS)
+    #     target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_MKL)        
+    #     target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_LAPACK)
+    # else()
+        set(BLA_VENDOR OpenBLAS)
+        find_package(BLAS)
+        if(BLAS_FOUND)
+            message(STATUS "FOUND OpenBLAS")
+            target_link_libraries(polysolve PUBLIC BLAS::BLAS)
+            target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_BLAS)     
+            target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_OPENBLAS)
+
+            # To do: Support LAPACK
+
+            # find_package(LAPACK)
+            # if(LAPACK_FOUND)
+            #     message(STATUS "FOUND LAPACK")
+            #     target_link_libraries(polysolve PUBLIC LAPACK::LAPACK)
+            #     target_compile_definitions(polysolve PUBLIC -DCATAMARI_HAVE_LAPACK)
+            # endif()
+        else()
+            message(FATAL_ERROR "No BLAS Library found for Catamari, please install MKL or OpenBLAS")
+        endif()
+    # endif()
+
+    # To do: Support OpenMP
+    
+    # find_package(OpenMP)
+    # if(OpenMP_CXX_FOUND)
+    #     target_link_libraries(polysolve PUBLIC OpenMP::OpenMP_CXX)
+    #     target_compile_definitions(polysolve PUBLIC -DCATAMARI_OPENMP)        
+    # endif()
+    target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_CATAMARI)
 endif()
 
 # Spectra (MPL 2.0)

@@ -26,6 +26,9 @@
 #ifdef POLYSOLVE_WITH_AMGCL
 #include <polysolve/LinearSolverAMGCL.hpp>
 #endif
+#ifdef POLYSOLVE_WITH_CATAMARI
+#include <polysolve/LinearSolverCatamari.hpp>
+#endif
 #include <unsupported/Eigen/IterativeSolvers>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -226,6 +229,12 @@ namespace polysolve
         {
             return std::make_unique<LinearSolverAMGCL>();
 #endif
+#ifdef POLYSOLVE_WITH_CATAMARI
+        }
+        else if (solver == "Catamari")
+        {
+            return std::make_unique<LinearSolverCatamari>();
+#endif
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
             // Available only with Eigen 3.3.0 and newer
 #ifndef POLYSOLVE_LARGE_INDEX
@@ -294,6 +303,9 @@ namespace polysolve
 #endif
 #ifdef POLYSOLVE_WITH_AMGCL
             "AMGCL",
+#endif
+#ifdef POLYSOLVE_WITH_CATAMARI
+            "Catamari",
 #endif
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
 #ifndef POLYSOLVE_LARGE_INDEX
