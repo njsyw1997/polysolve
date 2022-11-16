@@ -2,7 +2,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 #include <polysolve/LinearSolverHypre.hpp>
-
+// TO DO: include fei-hypre/HYPRE_LSI_mli.h 
 #include <HYPRE_krylov.h>
 #include <HYPRE_utilities.h>
 #include <_hypre_utilities.h>
@@ -10,7 +10,7 @@
 
 namespace polysolve
 {
-
+    
     ////////////////////////////////////////////////////////////////////////////////
 
     LinearSolverHypre::LinearSolverHypre()
@@ -51,6 +51,10 @@ namespace polysolve
             if (params["Hypre"].contains("max_iter"))
             {
                 max_iter_ = params["Hypre"]["max_iter"];
+            }
+            if (params["Hypre"].contains("smoothed_aggregation"))
+            {
+                is_sa = params["Hypre"]["smoothed_aggregation"];
             }
             if (params["Hypre"].contains("pre_max_iter"))
             {
@@ -122,28 +126,29 @@ namespace polysolve
         {
             // AMG coarsening options:
             int coarsen_type = 10; // 10 = HMIS, 8 = PMIS, 6 = Falgout, 0 = CLJP
-            int agg_levels = 1;    // number of aggressive coarsening levels
+            int agg_levels = 0;    // number of aggressive coarsening levels
             double theta = 0.25;   // strength threshold: 0.25, 0.5, 0.8
 
-            // AMG interpolation options:
-            int interp_type = 6; // 6 = extended+i, 0 = classical
-            int Pmax = 4;        // max number of elements per row in P
+            int interp_type = 6;       // 6 = extended+i, 0 = classical
+            int Pmax = 5;              // max number of elements per row in P
+            double trunc_factor = 0.3; // Defines a truncation factor for the interpolation
+            int coarse_size=300;       // Sets maximum size of coarsest grid. The default is 9. AMGCL setting is 3000
 
             // AMG relaxation options:
             int relax_type = 16;  // 8 = l1-GS, 6 = symm. GS, 3 = GS, 16 = Chebyshev, 18 = l1-Jacobi
             int relax_sweeps = 1; // relaxation sweeps on each level
-
-            // Additional options:
             int print_level = 3; // print AMG iterations? 1 = no, 2 = yes
-            int max_levels = 25;  // max number of levels in AMG hierarchy
+            // Additional options:  
+           
+            int max_levels = 25; // max number of levels in AMG hierarchy
 
             // Chebyshev Settings
-            int eig_est = 100;   // Number of CG iterations to determine the smallest and largest eigenvalue
-            double ratio = 0.008333333333;
+            int eig_est = 100; // Number of CG iterations to determine the smallest and largest eigenvalue
+            double ratio = 0.03;
             int relax_coarse = 9; // smoother on the coarsest grid: 9=Gauss Elimination
 
             HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
-            HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
+            // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
             HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
             HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
             HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
@@ -158,15 +163,27 @@ namespace polysolve
             HYPRE_BoomerAMGSetChebyOrder(amg_precond, 4);
             // Fraction of the spectrum to use for the Chebyshev smoother. The default is .3 (i.e., damp on upper 30% of the spectrum).
             HYPRE_BoomerAMGSetChebyFraction(amg_precond, ratio);
+            // HYPRE_BoomerAMGSetChebyFraction(amg_precond, 0.03);
 
             // Settings from AMGCL
             HYPRE_BoomerAMGSetChebyScale(amg_precond, 1);
             HYPRE_BoomerAMGSetChebyVariant(amg_precond, 0);
-            HYPRE_BoomerAMGSetChebyEigEst(amg_precond, eig_est);
+            // HYPRE_BoomerAMGSetChebyEigEst(amg_precond, eig_est);
+            HYPRE_BoomerAMGSetChebyEigEst(amg_precond, 0);
+#if 0
+            //FSAI TEST
+            HYPRE_BoomerAMGSetSmoothType(amg_precond, 4);
+            HYPRE_BoomerAMGSetSmoothNumLevels(amg_precond, 5);
+            HYPRE_BoomerAMGSetFSAIMaxSteps(amg_precond, 30);
+            HYPRE_BoomerAMGSetFSAIMaxStepSize(amg_precond, 6);
+            HYPRE_BoomerAMGSetFSAIKapTolerance(amg_precond, 1e-5); 
+#endif 
 
             // Use as a preconditioner (one V-cycle, zero tolerance)
             HYPRE_BoomerAMGSetMaxIter(amg_precond, 1);
             HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
+            HYPRE_BoomerAMGSetTruncFactor(amg_precond, trunc_factor);
+            HYPRE_BoomerAMGSetMaxCoarseSize(amg_precond,coarse_size);
         }
 
         void HypreBoomerAMG_SetElasticityOptions(HYPRE_Solver &amg_precond, int dim)
@@ -181,16 +198,17 @@ namespace polysolve
                 // Hypre recommend setting 0.5 for 3D problem, 0.25 for 2D and scalar problem
                 HYPRE_BoomerAMGSetStrongThreshold(amg_precond, 0.5);
             }
+            // TODO Adding HYPRE_MGR to do block optimization?
+
             // Nodal coarsening options (nodal coarsening is required for this solver)
             // See hypre's new_ij driver and the paper for descriptions.
             int nodal = 4;      // strength reduction norm: 1, 3 or 4
             int nodal_diag = 1; // diagonal in strength matrix: 0, 1 or 2
             // int relax_coarse = 8; // smoother on the coarsest grid: 8, 99 or 29
 
-
             // Elasticity interpolation options
             int interp_vec_variant = 2;    // 1 = GM-1, 2 = GM-2, 3 = LN
-            int q_max = 4;                 // max elements per row for each Q
+            int q_max = 5;                 // max elements per row for each Q
             int smooth_interp_vectors = 1; // smooth the rigid-body modes?
 
             // Optionally pre-process the interpolation matrix through iterative weight
@@ -199,7 +217,6 @@ namespace polysolve
 
             HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
             HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
-
             HYPRE_BoomerAMGSetInterpVecVariant(amg_precond, interp_vec_variant);
             HYPRE_BoomerAMGSetInterpVecQMax(amg_precond, q_max);
             // HYPRE_BoomerAMGSetSmoothInterpVectors(amg_precond, smooth_interp_vectors);
@@ -266,9 +283,14 @@ namespace polysolve
         /* Set some parameters (See Reference Manual for more parameters) */
         HYPRE_PCGSetMaxIter(solver, max_iter_); /* max iterations */
         HYPRE_PCGSetTol(solver, conv_tol_);     /* conv. tolerance */
-        HYPRE_PCGSetTwoNorm(solver, 1);         /* use the two norm as the stopping criteria */
-        HYPRE_PCGSetPrintLevel(solver, 2); /* print solve info */
-        HYPRE_PCGSetLogging(solver, 1); /* needed to get run info later */
+        HYPRE_PCGSetTwoNorm(solver, 1);
+        /* use the two norm as the stopping criteria */
+        HYPRE_PCGSetPrintLevel(solver, 2);      /* print solve info */
+        if (is_test)
+        {
+            HYPRE_PCGSetPrintLevel(solver, 1);  
+        }
+        HYPRE_PCGSetLogging(solver, 1);         /* needed to get run info later */
 
         /* Now set up the AMG preconditioner and specify any parameters */
         HYPRE_BoomerAMGCreate(&precond);
@@ -289,9 +311,25 @@ namespace polysolve
             HypreBoomerAMG_SetElasticityOptions(precond, dimension_);
         }
 
-        /* Set the PCG preconditioner */
-        HYPRE_PCGSetPrecond(solver, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSolve, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSetup, precond);
+        /*TO DO: Smoothed Aggregation*/
+        
+        // HYPRE_LSI_MLICreate(MPI_COMM_WORLD, &precond);
+        // HYPRE_LSI_MLISetParams(precond, "MLI strengthThreshold 0.08");
+        // if (is_sa)
+        // To do: Smoothed aggregation cmake
+        // if (false)
+        // {
+        //     HYPRE_PCGSetPrecond(solver,
+        //             (HYPRE_PtrToSolverFcn) HYPRE_LSI_MLISolve,
+        //             (HYPRE_PtrToSolverFcn) HYPRE_LSI_MLISetup,
+        //             precond);
+        // }
+        // else{
+        //     HYPRE_PCGSetPrecond(solver, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSolve, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSetup, precond);
+        // } 
 
+        /* Set the PCG preconditioner */
+        HYPRE_PCGSetPrecond(solver, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSolve, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSetup, precond);      
         /* Now setup and solve! */
         HYPRE_ParCSRPCGSetup(solver, parcsr_A, par_b, par_x);
         HYPRE_ParCSRPCGSolve(solver, parcsr_A, par_b, par_x);

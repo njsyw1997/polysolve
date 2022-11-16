@@ -9,7 +9,7 @@ message(STATUS "Third-party: creating target 'HYPRE::HYPRE'")
 set(HYPRE_WITH_MPI      ON CACHE INTERNAL "" FORCE)
 set(HYPRE_PRINT_ERRORS  ON CACHE INTERNAL "" FORCE)
 set(HYPRE_BIGINT        ON CACHE INTERNAL "" FORCE)
-set(HYPRE_USING_FEI    OFF CACHE INTERNAL "" FORCE)
+set(HYPRE_USING_FEI     ON CACHE INTERNAL "" FORCE)
 set(HYPRE_USING_OPENMP  ON CACHE INTERNAL "" FORCE)
 set(HYPRE_SHARED       OFF CACHE INTERNAL "" FORCE)
 
@@ -23,5 +23,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(hypre)
 
+include_directories("${hypre_SOURCE_DIR}/src/FEI_mv")
 add_subdirectory("${hypre_SOURCE_DIR}/src" ${hypre_BINARY_DIR})
 file(REMOVE "${hypre_SOURCE_DIR}/src/utilities/version")

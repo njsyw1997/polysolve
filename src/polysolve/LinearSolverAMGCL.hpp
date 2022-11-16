@@ -92,6 +92,9 @@ namespace polysolve
         typename Backend::params backend_params_;
         int precond_num_;
 
+        //Timer, test only
+        amgcl::profiler<> prof;
+
         // Output info
         size_t iterations_;
         double residual_error_;
@@ -157,6 +160,9 @@ namespace polysolve
         // Output info
         size_t iterations_;
         double residual_error_;
+
+        // Timer, test only
+        amgcl::profiler<> prof;
 
         LinearSolverAMGCL_Block<2> block2_solver_;
         LinearSolverAMGCL_Block<3> block3_solver_;

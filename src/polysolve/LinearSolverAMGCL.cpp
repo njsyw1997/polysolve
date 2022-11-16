@@ -9,7 +9,7 @@
 
 namespace polysolve
 {
-
+    bool is_test = true;
     namespace
     {
         /* https://stackoverflow.com/questions/15904896/range-based-for-loop-on-a-dynamic-array */
@@ -32,35 +32,7 @@ namespace polysolve
         json default_params()
         {
             json params = R"({
-                "precond": {
-                    "relax": {
-                        "degree": 5,
-                        "type": "chebyshev",
-                        "power_iters": 100,
-                        "higher": 2,
-                        "lower": 0.008333333333,
-                        "scale": true
-                    },
-                    "class": "amg",
-                    "max_levels": 25,
-                    "direct_coarse": true,
-                    "ncycle": 1,
-                    "coarsening": {
-                        "type": "smoothed_aggregation",
-                        "estimate_spectral_radius": true,
-                        "relax": 1,
-                        "aggr": {
-                            "eps_strong": 0.25
-                        }
-                    }
-                },
-                "solver": {
-                    "tol": 1e-10,
-                    "maxiter": 1000,
-                    "type": "cg",
-                    "verbose": true
-                }
-        })"_json;
+            })"_json;
 
             return params;
         }
@@ -74,7 +46,7 @@ namespace polysolve
                 //     out["precond"].merge_patch(params["AMGCL"]["precond"]);
                 // if (params["AMGCL"].contains("solver"))
                 //     out["solver"].merge_patch(params["AMGCL"]["solver"]);
-                out.merge_patch(params["AMGCL"]);
+                out = params["AMGCL"];
                 // if (out["precond"]["class"] == "schur_pressure_correction")
                 // {
                 //     // Initialize the u and p solvers with a tolerance that is comparable to the main solver's
@@ -97,7 +69,6 @@ namespace polysolve
 
     LinearSolverAMGCL::LinearSolverAMGCL()
     {
-        params_ = default_params();
         // NOTE: usolver and psolver parameters are only used if the
         // preconditioner class is "schur_pressure_correction"
         precond_num_ = 0;
@@ -179,7 +150,9 @@ namespace polysolve
         boost::property_tree::ptree pt_params;
         boost::property_tree::read_json(ss_params, pt_params);
         auto A = std::tie(numRows, ia, ja, a);
+        prof.tic("setup");
         solver_ = std::make_unique<Solver>(A, pt_params);
+        prof.toc("setup");
         iterations_ = 0;
         residual_error_ = 0;
     }
@@ -202,15 +175,25 @@ namespace polysolve
         }
         assert(result.size() == rhs.size());
         std::vector<double> _rhs(rhs.data(), rhs.data() + rhs.size());
+        if (is_test)
+        {
+            result=Eigen::VectorXd::Random(result.size());
+        }
+
         std::vector<double> x(result.data(), result.data() + result.size());
         auto rhs_b = Backend::copy_vector(_rhs, backend_params_);
         auto x_b = Backend::copy_vector(x, backend_params_);
 
         assert(solver_ != nullptr);
+        prof.tic("solve");
         std::tie(iterations_, residual_error_) = (*solver_)(*rhs_b, *x_b);
-
-        std::copy(&(*x_b)[0], &(*x_b)[0] + result.size(), result.data());
-        std::cout << (*solver_) << std::endl;
+        prof.toc("solve");
+            std::copy(&(*x_b)[0], &(*x_b)[0] + result.size(), result.data());
+        if (is_test)
+        {
+            std::cout << (*solver_) << std::endl;
+            std::cout << prof << std::endl;
+        }
     }
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -222,8 +205,6 @@ namespace polysolve
     template <int BLOCK_SIZE>
     LinearSolverAMGCL_Block<BLOCK_SIZE>::LinearSolverAMGCL_Block()
     {
-        params_ = default_params();
-
         // NOTE: usolver and psolver parameters are only used if the
         // preconditioner class is "schur_pressure_correction"
         precond_num_ = 0;
@@ -271,7 +252,9 @@ namespace polysolve
 
         auto A = std::tie(numRows, ia, ja, a);
         auto Ab = amgcl::adapter::block_matrix<dmat_type>(A);
+        prof.tic("setup");
         solver_ = std::make_unique<Solver>(Ab, pt_params);
+        prof.toc("setup");
         iterations_ = 0;
         residual_error_ = 0;
     }
@@ -285,19 +268,28 @@ namespace polysolve
     {
         assert(result.size() == rhs.size());
         std::vector<double> _rhs(rhs.data(), rhs.data() + rhs.size());
+        // if (is_test)
+        // {
+        //     result=Eigen::VectorXd::Random(result.size());
+        // }
         std::vector<double> x(result.data(), result.data() + result.size());
-
         auto rhs_b = amgcl::backend::reinterpret_as_rhs<dmat_type>(_rhs);
         auto x_b = amgcl::backend::reinterpret_as_rhs<dmat_type>(x);
 
         assert(solver_ != nullptr);
+        prof.tic("solve");
         std::tie(iterations_, residual_error_) = (*solver_)(rhs_b, x_b);
+        prof.toc("solve");
         for (size_t i = 0; i < rhs.size() / BLOCK_SIZE; i++)
             for (size_t j = 0; j < BLOCK_SIZE; j++)
             {
                 result[BLOCK_SIZE * i + j] = x_b[i](j);
             }
-        std::cout << (*solver_) << std::endl;
+        if (is_test)
+        {
+            std::cout << (*solver_) << std::endl;
+            std::cout << prof << std::endl;
+        }
     }
 
     template <int BLOCK_SIZE>
