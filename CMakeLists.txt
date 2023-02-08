@@ -42,11 +42,14 @@ option(POLYSOLVE_WITH_PARDISO       "Enable Pardiso library"                    
 option(POLYSOLVE_WITH_HYPRE         "Enable hypre"                                ON)
 option(POLYSOLVE_WITH_AMGCL         "Use AMGCL"                                   ON)
 option(POLYSOLVE_WITH_SPECTRA       "Enable computing spectrum"                   ON)
+option(POLYSOLVE_WITH_TRILINOS      "Enable trilinos solver"                      ON) 
+
 # Sanitizer options
 option(POLYSOLVE_SANITIZE_ADDRESS   "Sanitize Address"                           OFF)
 option(POLYSOLVE_SANITIZE_MEMORY    "Sanitize Memory"                            OFF)
 option(POLYSOLVE_SANITIZE_THREAD    "Sanitize Thread"                            OFF)
 option(POLYSOLVE_SANITIZE_UNDEFINED "Sanitize Undefined"                         OFF)
+
 # Misc.
 option(POLYSOLVE_LARGE_INDEX        "Build for large indices"                    OFF)
 option(POLYSOLVE_WITH_TESTS         "Build unit-tests" ${POLYSOLVE_TOPLEVEL_PROJECT})
@@ -201,6 +204,25 @@ if(POLYSOLVE_WITH_SPECTRA)
     include(spectra)
     target_link_libraries(polysolve PUBLIC spectra::spectra)
     target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_SPECTRA)
+endif()
+
+# Trilinos
+if (POLYSOLVE_WITH_TRILINOS)
+    # cmake -D CMAKE_PREFIX_PATH=/home/yiwei/Trilinos/lib   
+    find_package(Trilinos REQUIRED COMPONENTS ML Epetra)# Only for local build, fix it when publish 
+    MESSAGE("\nFound Trilinos!  Here are the details: ")
+    MESSAGE("   Trilinos_DIR = ${Trilinos_DIR}")
+    MESSAGE("   Trilinos_VERSION = ${Trilinos_VERSION}")
+    MESSAGE("   Trilinos_PACKAGE_LIST = ${Trilinos_PACKAGE_LIST}")
+    MESSAGE("   Trilinos_LIBRARIES = ${Trilinos_LIBRARIES}")
+    MESSAGE("   Trilinos_INCLUDE_DIRS = ${Trilinos_INCLUDE_DIRS}")
+    MESSAGE("   Trilinos_TPL_LIST = ${Trilinos_TPL_LIST}")
+    MESSAGE("   Trilinos_TPL_LIBRARIES = ${Trilinos_TPL_LIBRARIES}")
+    MESSAGE("   Trilinos_BUILD_SHARED_LIBS = ${Trilinos_BUILD_SHARED_LIBS}")
+    MESSAGE("End of Trilinos details\n")   
+    target_link_libraries(polysolve PUBLIC ${Trilinos_LIBRARIES})
+    target_include_directories(polysolve PUBLIC ${Trilinos_INCLUDE_DIRS})
+    target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_TRILINOS)
 endif()
 
 ################################################################################

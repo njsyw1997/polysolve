@@ -26,6 +26,9 @@
 #ifdef POLYSOLVE_WITH_AMGCL
 #include <polysolve/LinearSolverAMGCL.hpp>
 #endif
+#ifdef POLYSOLVE_WITH_TRILINOS
+#include <polysolve/LinearSolverTrilinos.hpp>
+#endif
 #include <unsupported/Eigen/IterativeSolvers>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +232,12 @@ namespace polysolve
         else if (solver == "AMGCL")
         {
             return std::make_unique<LinearSolverAMGCL>();
+#endif
+#ifdef POLYSOLVE_WITH_TRILINOS
+        }
+        else if (solver == "Trilinos")
+        {
+            return std::make_unique<LinearSolverTrilinos>();
 #endif
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
             // Available only with Eigen 3.3.0 and newer

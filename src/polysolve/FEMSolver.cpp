@@ -254,6 +254,9 @@ Eigen::Vector4d polysolve::dirichlet_solve(
 
     if (!save_path.empty())
     {
+        std::size_t found = save_path.find_last_of("/\\");
+        std::string rhs_path=save_path.substr(0,found)+"/rhs.mtx";
+        Eigen::saveMarketVector(f, rhs_path);  
         Eigen::saveMarket(A, save_path);
     }
 
