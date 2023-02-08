@@ -750,3 +750,283 @@ TEST_CASE("hypre_smallscale", "[solver]")
     REQUIRE(err_b < 1e-8);
 }
 #endif
+
+#ifdef POLYSOLVE_WITH_HYPRE
+TEST_CASE("Hyprel_b2", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+    std::string MatrixName = "gr_30_30.mtx";
+    Eigen::SparseMatrix<double> A;
+    loadSymmetric(A, path + "/" + MatrixName);
+    std::cout << "Matrix Load OK" << std::endl;
+    Eigen::VectorXd b(A.rows());
+    b.setOnes();
+    Eigen::VectorXd x(b.size());
+    x.setZero();
+    Eigen::VectorXd x_b(b.size());
+    x_b.setZero();
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["block_size"] = 2;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x_b);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    const double err = (A * x - b).norm() / b.norm();
+    const double err_b = (A * x_b - b).norm() / b.norm();
+    std::cout << "Scalar relative error " << err << std::endl;
+    std::cout << "Block relative error " << err_b << std::endl;
+    REQUIRE(err < 1e-8);
+    REQUIRE(err_b < 1e-8);
+}
+#endif
+
+#ifdef POLYSOLVE_WITH_HYPRE
+TEST_CASE("Hybre_crystm03", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+    std::string MatrixName = "crystm03.mtx";
+    Eigen::SparseMatrix<double> A;
+    loadSymmetric(A, path + "/" + MatrixName);
+    std::cout << "Matrix Load OK" << std::endl;
+    Eigen::VectorXd b(A.rows());
+    b.setOnes();
+    Eigen::VectorXd x(b.size());
+    x.setZero();
+    Eigen::VectorXd x_b(b.size());
+    x_b.setZero();
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["block_size"] = 3;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x_b);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    const double err = (A * x - b).norm() / b.norm();
+    const double err_b = (A * x_b - b).norm() / b.norm();
+    std::cout << "Scalar relative error " << err << std::endl;
+    std::cout << "Block relative error " << err_b << std::endl;
+    REQUIRE(err < 1e-8);
+    REQUIRE(err_b < 1e-8);
+}
+#endif
+
+#ifdef POLYSOLVE_WITH_HYPRE
+TEST_CASE("hypre_smallscale", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+    Eigen::SparseMatrix<double> A;
+    const bool ok = loadMarket(A, path + "/A_2.mat");
+    REQUIRE(ok);
+    Eigen::VectorXd b(A.rows());
+    b.setOnes();
+    Eigen::VectorXd x(b.size());
+    x.setZero();
+    Eigen::VectorXd x_b(b.size());
+    x_b.setZero();
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    {
+        clock_t start, end;
+        json solver_info;
+        start = clock();
+        auto solver = LinearSolver::create("Hypre", "");
+        json params;
+        params["Hypre"]["block_size"] = 3;
+        params["Hypre"]["tolerance"] = 1e-8;
+        params["Hypre"]["max_iter"] = 1000;
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        solver->solve(b, x_b);
+        end = clock();
+        solver->getInfo(solver_info);
+        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl;
+    }
+    const double err = (A * x - b).norm() / b.norm();
+    const double err_b = (A * x_b - b).norm() / b.norm();
+    std::cout << "Scalar relative error " << err << std::endl;
+    std::cout << "Block relative error " << err_b << std::endl;
+    REQUIRE(err < 1e-8);
+    REQUIRE(err_b < 1e-8);
+}
+#endif
+
+#ifdef POLYSOLVE_WITH_CUSOLVER
+TEST_CASE("cusolverdn", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+    Eigen::SparseMatrix<double> A;
+    const bool ok = loadMarket(A, path + "/A_2.mat");
+    REQUIRE(ok);
+
+    auto solver = LinearSolver::create("cuSolverDN", "");
+    // solver->setParameters(params);
+    Eigen::VectorXd b(A.rows());
+    b.setRandom();
+    Eigen::VectorXd x(b.size());
+    x.setZero();
+
+    solver->analyzePattern(A, A.rows());
+    solver->factorize(A);
+    solver->solve(b, x);
+
+    // std::cout<<"Solver error: "<<x<<std::endl;
+    const double err = (A * x - b).norm();
+    REQUIRE(err < 1e-8);
+}
+TEST_CASE("cusolverdn_dense", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+
+    Eigen::MatrixXd A(4, 4);
+    for(int i = 0; i < 4; i++){
+        A(i,i) = 1.0;
+    }
+    A(0,1) = 1.0;
+    A(3,0) = 1.0;
+
+    auto solver = LinearSolver::create("cuSolverDN", "");
+    // solver->setParameters(params);
+    Eigen::VectorXd b(A.rows());
+    b.setRandom();
+    Eigen::VectorXd x(b.size());
+    x.setZero();
+
+    solver->analyzePattern(A, A.rows());
+    solver->factorize(A);
+    solver->solve(b, x);
+
+    // std::cout<<"Solver error: "<<x<<std::endl;
+    const double err = (A * x - b).norm();
+    REQUIRE(err < 1e-8);
+}
+
+TEST_CASE("cusolverdn_5cubes", "[solver]")
+{
+    const std::string path = POLYSOLVE_DATA_DIR;
+    auto solver = LinearSolver::create("cuSolverDN", "");
+    
+    //std::ofstream factorize_times_file(path+"/factorize_times_5cubes.txt");
+    //std::ofstream solve_times_file(path+"/solve_times_5cubes.txt");
+
+    for(int i = 0; i <= 1091; i++){
+        Eigen::MatrixXd A(120, 120);
+        std::string hessian_path = path + "/matrixdata-5cubes/hessian" + std::to_string(i) + ".txt";
+        std::ifstream hessian_file(hessian_path);
+        for(int m = 0; m < 120; m++){
+            for(int n = 0; n < 120; n++){
+                hessian_file >> A(m,n);
+            }
+        }
+
+        Eigen::VectorXd b(A.rows());
+        std::string gradient_path = path + "/matrixdata-5cubes/gradient" + std::to_string(i) + ".txt";
+        std::ifstream gradient_file(gradient_path);
+        for(int m = 0; m < 120; m++){
+            gradient_file >> b(m);
+        }
+
+        Eigen::VectorXd x(b.size());
+        x.setZero();
+
+        solver->analyzePattern(A, A.rows());
+        
+        //std::chrono::steady_clock::time_point beginf = std::chrono::steady_clock::now();
+        solver->factorize(A);
+        //std::chrono::steady_clock::time_point endf = std::chrono::steady_clock::now();
+        //std::cout << "time to factorize: " << std::chrono::duration_cast<std::chrono::nanoseconds>(endf-beginf).count() << std::endl;
+        //factorize_times_file << std::chrono::duration_cast<std::chrono::nanoseconds>(endf-beginf).count() << " ";
+
+        //std::chrono::steady_clock::time_point begins = std::chrono::steady_clock::now();
+        solver->solve(b, x);
+        //std::chrono::steady_clock::time_point ends = std::chrono::steady_clock::now();
+        //std::cout << "time to solve: " << std::chrono::duration_cast<std::chrono::nanoseconds>(ends-begins).count() << std::endl;
+        //solve_times_file << std::chrono::duration_cast<std::chrono::nanoseconds>(ends-begins).count() << " ";
+
+        //std::cout << "Ax norm: " << (A*x).norm() << std::endl;
+        //std::cout << "b norm: " << b.norm() << std::endl;
+
+        const double err = (A * x - b).norm();
+        REQUIRE(err < 1e-8);
+    }
+}
+#endif
