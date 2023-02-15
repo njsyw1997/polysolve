@@ -21,12 +21,10 @@ namespace polysolve
             char *argv[] = {name};
             char **argvv = &argv[0];
             MPI_Init(&argc, &argvv);
-            Epetra_MpiComm comm(MPI_COMM_WORLD);
-            CommPtr = &comm;
+            CommPtr = new Epetra_MpiComm(MPI_COMM_WORLD);
         }
 #else
-     Epetra_SerialComm comm;
-     CommPtr=&comm;
+     CommPtr=new Epetra_SerialComm;
 #endif
     }
 
@@ -67,34 +65,34 @@ namespace polysolve
 
         Eigen::SparseMatrix<double,Eigen::RowMajor> Arow(Ain);
         int mypid = CommPtr->MyPID();        
-        int indexBase=1;
+        int indexBase=0;
         int numGlobalElements = Arow.nonZeros();
-        int numGlobalCols=Arow.rows();
+        int numGlobalRows=Arow.rows();
         Epetra_Map *rowMap=NULL;
-        int numNodes= numGlobalCols /numPDEs;       
-        if ((numGlobalCols - numNodes * numPDEs) != 0 && !mypid){
+        int numNodes= numGlobalRows /numPDEs;       
+        if ((numGlobalRows - numNodes * numPDEs) != 0 && !mypid){
             throw std::runtime_error("Number of matrix rows is not divisible by #dofs");
         }
         int numMyNodes;
         int nproc = CommPtr->NumProc();
         if (CommPtr->MyPID() < nproc-1) numMyNodes = numNodes / nproc;
         else numMyNodes = numNodes - (numNodes/nproc) * (nproc-1);
-        rowMap = new Epetra_Map(numGlobalCols,numMyNodes*numPDEs,indexBase,(*CommPtr));
-        // std::vector<int> col_vec(Ain.innerNonZeroPtr (),Ain.innerNonZeroPtr ()+Ain.rows());
-        // int maxColNnzs= std::max_element(col_vec.begin(), col_vec.end());
-        A = new Epetra_CrsMatrix(Copy,*rowMap,Arow.innerNonZeroPtr (), true);
+        rowMap = new Epetra_Map(numGlobalRows,numMyNodes*numPDEs,indexBase,(*CommPtr));
+
+        A = new Epetra_CrsMatrix(Copy,*rowMap,0); //Can allocate memory for each row in advance
+
         {
             int nnzs=0;
             for (int k=0 ; k < Arow.outerSize(); k++)
             {
-                int numEntries=*(Arow.innerNonZeroPtr() + k);
-                int *indices=Arow.innerIndexPtr () + nnzs;
+                // std::cout<<Arow.innerVector(k).nonZeros()<<" ";
+                int numEntries=Arow.outerIndexPtr()[k+1]-Arow.outerIndexPtr()[k];
+                int* indices=Arow.innerIndexPtr () + nnzs;
                 double* values=Arow.valuePtr () + nnzs;
                 A->InsertGlobalValues(k,numEntries,values,indices);
                 nnzs=nnzs+numEntries;
             }
         }
-
         A->FillComplete();
     }
 
@@ -110,7 +108,13 @@ namespace polysolve
             
 
             MLList.set("aggregation: threshold",str_connect);
-            MLList.set("smoother: type","Jacobi");
+            
+            // Smoother Settings
+            MLList.set("smoother: type","Chebyshev");
+            MLList.set("smoother: sweeps", 5); //Chebyshev degree
+            MLList.set("smoother: Chbeshev alpha",30.0);
+
+            //Coarser Settings
             MLList.set("coarse: max size",5);
 
             MLList.set("ML output",10);
@@ -133,6 +137,8 @@ namespace polysolve
             x[i]=result[i];
             b[i]=rhs[i];
         }
+        // std::cout<<"x[0] "<<x[0]<<std::endl;
+        // std::cout<<"b[0] "<<b[0]<<std::endl;
 
         Epetra_LinearProblem Problem(A,&x,&b);
         AztecOO solver(Problem);
@@ -152,7 +158,18 @@ namespace polysolve
         workvec.Norm2(&mynorm);
         if (CommPtr->MyPID() == 0)
         {
+            
+            // std::cout<<"Max iterations "<<max_iter_<<std::endl;
+            // std::cout<<"Residual is "<<mynorm<<std::endl;
+            // std::cout<<"Trilinos Residual is "<<solver.ScaledResidual ()<<std::endl;
+            // std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;            
             residual_error_=mynorm;
+            iterations_=solver.NumIters();
+        }
+
+        for (size_t i = 0; i < rhs.size(); i++)
+        {
+            result[i]=x[i];
         }
         delete MLPrec;
     }

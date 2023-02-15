@@ -168,3 +168,16 @@ For a more details and options refer to the [AMGCL documentation](https://amgcl.
 | 6     | complex and symmetric                   |
 | 11    | real and nonsymmetric                   |
 | 13    | complex and nonsymmetric                |
+
+### Trilinos Cmake
+cmake \
+-DTPL_ENABLE_MPI=OFF \
+-DTrilinos_ENABLE_AztecOO=ON \
+-DTrilinos_ENABLE_Fortran=OFF \
+-DTrilinos_ENABLE_Epetra=ON \
+-DTrilinos_ENABLE_ML=ON \
+-DTrilinos_ENABLE_Ifpack=ON \
+-DCMAKE_INSTALL_PREFIX=<path to install Trilinos into> \
+<path to Trilinos source>
+
+make install
