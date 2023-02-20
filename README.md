@@ -171,12 +171,12 @@ For a more details and options refer to the [AMGCL documentation](https://amgcl.
 
 ### Trilinos Cmake
 cmake \
--DTPL_ENABLE_MPI=OFF \
--DTrilinos_ENABLE_AztecOO=ON \
 -DTrilinos_ENABLE_Fortran=OFF \
+-DTPL_ENABLE_MPI=OFF \
+-DTrilinos_ENABLE_OpenMP=ON \
+-DTrilinos_ENABLE_AztecOO=ON \
 -DTrilinos_ENABLE_Epetra=ON \
 -DTrilinos_ENABLE_ML=ON \
--DTrilinos_ENABLE_Ifpack=ON \
 -DCMAKE_INSTALL_PREFIX=<path to install Trilinos into> \
 <path to Trilinos source>
 

@@ -309,6 +309,9 @@ namespace polysolve
 #ifdef POLYSOLVE_WITH_AMGCL
             "AMGCL",
 #endif
+#ifdef POLYSOLVE_WITH_TRILINOS
+            "Trilinos",
+#endif
 #if EIGEN_VERSION_AT_LEAST(3, 3, 0)
 #ifndef POLYSOLVE_LARGE_INDEX
             "Eigen::LeastSquaresConjugateGradient",

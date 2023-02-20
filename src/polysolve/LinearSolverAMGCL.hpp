@@ -32,6 +32,8 @@
 #include <amgcl/adapter/eigen.hpp>
 #include <amgcl/adapter/block_matrix.hpp>
 #include <amgcl/profiler.hpp>
+
+#include <amgcl/coarsening/rigid_body_modes.hpp>
 #include <memory>
 #include <type_traits>
 
@@ -100,6 +102,68 @@ namespace polysolve
         double residual_error_;
     };
 
+    template <int BLOCK_SIZE>
+    class LinearSolverAMGCL_NS: public LinearSolver
+     {
+
+    public:
+        LinearSolverAMGCL_NS();
+        ~LinearSolverAMGCL_NS();
+
+    private:
+        POLYSOLVE_DELETE_MOVE_COPY(LinearSolverAMGCL_NS)
+
+    public:
+        //////////////////////
+        // Public interface //
+        //////////////////////
+
+        // Set solver parameters
+        virtual void setParameters(const json &params) override;
+
+        // Retrieve information
+        virtual void getInfo(json &params) const override;
+
+        // Analyze sparsity pattern
+        virtual void analyzePattern(const StiffnessMatrix &A, const int precond_num) override { precond_num_ = precond_num; }
+
+        // Factorize system matrix
+        virtual void factorize(const StiffnessMatrix &A) override;
+        void factorize(const StiffnessMatrix &A, const VectorXd &coo);
+
+        // Solve the linear system Ax = b
+        virtual void solve(const Ref<const VectorXd> b, Ref<VectorXd> x) override;
+
+        // Name of the solver type (for debugging purposes)
+        virtual std::string name() const override { return "AMGCL_Nullspace_Block" + std::to_string(BLOCK_SIZE); }
+
+    private:
+        typedef amgcl::static_matrix<double, BLOCK_SIZE, BLOCK_SIZE> dmat_type; // matrix value type in double precision
+        using Backend = amgcl::backend::builtin<dmat_type>;
+        using Solver = amgcl::make_solver<
+            amgcl::amg<
+            Backend,
+            amgcl::coarsening::as_scalar<
+                amgcl::coarsening::smoothed_aggregation
+                >::type,
+            amgcl::relaxation::chebyshev
+            >,
+        amgcl::solver::cg<Backend>
+        >;
+        std::unique_ptr<Solver> solver_;
+        json params_;
+        typename Backend::params backend_params_;
+        int precond_num_;
+
+        //Timer, test only
+        amgcl::profiler<> prof;
+
+        // Output info
+        size_t iterations_;
+        double residual_error_;
+    };
+
+
     class LinearSolverAMGCL : public LinearSolver
     {
 
@@ -164,10 +228,12 @@ namespace polysolve
         // Timer, test only
         amgcl::profiler<> prof;
 
-        LinearSolverAMGCL_Block<2> block2_solver_;
-        LinearSolverAMGCL_Block<3> block3_solver_;
+        // LinearSolverAMGCL_Block<2> block2_solver_;
+        // LinearSolverAMGCL_Block<3> block3_solver_;
+
+        LinearSolverAMGCL_NS<2> block2_solver_;
+        LinearSolverAMGCL_NS<3> block3_solver_;
     };
 
-} // namespace polysolve
-
+}
 #endif

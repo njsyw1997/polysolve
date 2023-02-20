@@ -24,6 +24,9 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
 endif()
 
+# PATH to Trilinos lib, need to update for installing trilinos in polysolve
+set(CMAKE_PREFIX_PATH "/home/yiwei/Trilinos/lib")
+
 ################################################################################
 
 project(PolySolve

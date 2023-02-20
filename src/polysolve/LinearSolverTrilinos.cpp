@@ -112,19 +112,19 @@ namespace polysolve
             // Smoother Settings
             MLList.set("smoother: type","Chebyshev");
             MLList.set("smoother: sweeps", 5); //Chebyshev degree
-            MLList.set("smoother: Chbeshev alpha",30.0);
+            MLList.set("smoother: Chebyshev alpha",30.0);
 
             //Coarser Settings
             MLList.set("coarse: max size",5);
 
-            MLList.set("ML output",10);
+            MLList.set("ML output",0);
         }
     }
 
 
     void LinearSolverTrilinos::solve(const Eigen::Ref<const VectorXd> rhs, Eigen::Ref<VectorXd> result)
     {
-        int output=10; //how often to print residual history
+        int output=0; //how often to print residual history
         Teuchos::ParameterList MLList;
         TrilinosML_SetDefaultOptions(MLList);
         MLList.set("PDE equations",numPDEs);  
@@ -149,21 +149,21 @@ namespace polysolve
         solver.Iterate(max_iter_, conv_tol_ );
 
         //Calculate a final residual
-        Epetra_Vector workvec(A->RowMap());
-        double mynorm;
-        A->Multiply(false,x,workvec);
-        workvec.Update(1.0,b,-1.0);
-        b.Norm2(&mynorm);
-        workvec.Scale(1./mynorm);
-        workvec.Norm2(&mynorm);
+        // Epetra_Vector workvec(A->RowMap());
+        // double mynorm;
+        // A->Multiply(false,x,workvec);
+        // workvec.Update(1.0,b,-1.0);
+        // b.Norm2(&mynorm);
+        // workvec.Scale(1./mynorm);
+        // workvec.Norm2(&mynorm);
         if (CommPtr->MyPID() == 0)
         {
             
             // std::cout<<"Max iterations "<<max_iter_<<std::endl;
-            // std::cout<<"Residual is "<<mynorm<<std::endl;
-            // std::cout<<"Trilinos Residual is "<<solver.ScaledResidual ()<<std::endl;
+            // std::cout<<"Trilinos ScaleResidual is is "<<solver.TrueResidual ()<<std::endl;
+            // std::cout<<"Trilinos ScaleResidual is "<<solver.ScaledResidual ()<<std::endl;
             // std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;            
-            residual_error_=mynorm;
+            residual_error_=solver.ScaledResidual ();
             iterations_=solver.NumIters();
         }
 
