@@ -156,6 +156,19 @@ namespace polysolve
         iterations_ = 0;
         residual_error_ = 0;
     }
+    void LinearSolverAMGCL::factorize(const StiffnessMatrix &Ain, const Eigen::VectorXd &coo)
+    {
+        if (block_size_ == 2)
+        {
+            block2_solver_.factorize(Ain,coo);
+            return;
+        }
+        else if (block_size_ == 3)
+        {
+            block3_solver_.factorize(Ain,coo);
+            return;
+        }
+    }
     
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -289,6 +302,7 @@ namespace polysolve
         int nv;
         nv = amgcl::coarsening::rigid_body_modes(BLOCK_SIZE, coo, null); // TODO: COO requires to change the form of vector<double>
         pt_params.put("precond.coarsening.nullspace.cols", nv);
+        pt_params.put("precond.coarsening.nullspace.rows", Ain.rows());
         pt_params.put("precond.coarsening.nullspace.B",    &null[0]);
 
         auto A = std::tie(numRows, ia, ja, a);

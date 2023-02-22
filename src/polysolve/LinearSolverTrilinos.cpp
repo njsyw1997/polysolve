@@ -115,7 +115,7 @@ namespace polysolve
             MLList.set("smoother: Chebyshev alpha",30.0);
 
             //Coarser Settings
-            MLList.set("coarse: max size",5);
+            MLList.set("coarse: max size",128);
 
             MLList.set("ML output",0);
         }
@@ -124,7 +124,7 @@ namespace polysolve
 
     void LinearSolverTrilinos::solve(const Eigen::Ref<const VectorXd> rhs, Eigen::Ref<VectorXd> result)
     {
-        int output=0; //how often to print residual history
+        int output=10; //how often to print residual history
         Teuchos::ParameterList MLList;
         TrilinosML_SetDefaultOptions(MLList);
         MLList.set("PDE equations",numPDEs);  
@@ -144,7 +144,7 @@ namespace polysolve
         AztecOO solver(Problem);
         solver.SetAztecOption(AZ_solver, AZ_cg);
         solver.SetPrecOperator(MLPrec);
-        solver.SetAztecOption(AZ_output, output);
+        solver.SetAztecOption(AZ_output, AZ_all);
 
         solver.Iterate(max_iter_, conv_tol_ );
 
@@ -162,7 +162,7 @@ namespace polysolve
             // std::cout<<"Max iterations "<<max_iter_<<std::endl;
             // std::cout<<"Trilinos ScaleResidual is is "<<solver.TrueResidual ()<<std::endl;
             // std::cout<<"Trilinos ScaleResidual is "<<solver.ScaledResidual ()<<std::endl;
-            // std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;            
+            std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;            
             residual_error_=solver.ScaledResidual ();
             iterations_=solver.NumIters();
         }

@@ -123,30 +123,32 @@ The default parameters of the AMGCL solver are:
 {
     "precond": {
         "relax": {
-            "degree": 16,
+            "degree": 5,
             "type": "chebyshev",
             "power_iters": 100,
-            "higher": 2,
-            "lower": 0.008333333333,
+            "higher": 1,
+            "lower": 0.03,
             "scale": true
         },
         "class": "amg",
-        "max_levels": 6,
-        "direct_coarse": false,
-        "ncycle": 2,
+        "max_levels": 25,
+        "direct_coarse": true,
+        "ncycle": 1,
+        "block_size": 3,
         "coarsening": {
             "type": "smoothed_aggregation",
-            "estimate_spectral_radius": true,
-            "relax": 1,
+            "estimate_spectral_radius": false,
+            "relax": 1.0,
             "aggr": {
-                "eps_strong": 0
+                "eps_strong": 0.08
             }
         }
     },
     "solver": {
-        "tol": 1e-10,
+        "tol": 1e-8,
         "maxiter": 1000,
-        "type": "cg"
+        "type": "cg",
+        "verbose":true
     }
 }
 ```

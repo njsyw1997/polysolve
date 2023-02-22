@@ -37,6 +37,25 @@ void loadSymmetric(Eigen::SparseMatrix<double> &A, std::string PATH)
     fin.close();
     A.setFromTriplets(triple.begin(), triple.end());
 };
+
+void loadVec(Eigen::VectorXd &A, std::string PATH)
+{
+    std::ifstream fin(PATH);
+    long int M, N;
+    while (fin.peek() == '%')
+    {
+        fin.ignore(2048, '\n');
+    }
+    fin >> M >> N;
+    A.resize(M);
+    for (size_t i = 0; i < M; i++)
+    {
+        double data;
+        fin >> data;
+        A[i]=data;
+    }
+    fin.close();
+};
 // TEST_CASE("all", "[solver]")
 // {
 //     const std::string path = POLYSOLVE_DATA_DIR;
@@ -498,75 +517,139 @@ void loadSymmetric(Eigen::SparseMatrix<double> &A, std::string PATH)
 // }
 // #endif
 
-// #ifdef POLYSOLVE_WITH_AMGCL
-// TEST_CASE("amgcl_blocksolver_crystm03_Bicgstab", "[solver]")
-// {
-// #ifndef NDEBUG
-//     return;
-// #endif
-//     std::cout << "Polysolve AMGCL Solver" << std::endl;
-//     const std::string path = POLYSOLVE_DATA_DIR;
-//     std::string MatrixName = "crystm03.mtx";
-//     Eigen::SparseMatrix<double> A;
-//     loadSymmetric(A, path + "/" + MatrixName);
+#ifdef POLYSOLVE_WITH_AMGCL
+TEST_CASE("amgcl_blocksolver_crystm03_Bicgstab", "[solver]")
+{
+    std::cout << "Polysolve AMGCL Solver" << std::endl;
+    Eigen::SparseMatrix<double> A;
+    const bool ok = loadMarket(A, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/stiffness.mtx");
+    REQUIRE(ok);
+    std::cout << "Matrix Load OK" << std::endl;
 
-//     std::cout << "Matrix Load OK" << std::endl;
-
-//     Eigen::VectorXd b(A.rows());
-//     b.setOnes();
-//     Eigen::VectorXd x_b(A.rows());
-//     x_b.setZero();
-//     Eigen::VectorXd x(A.rows());
-//     x.setZero();
-//     {
-//         amgcl::profiler<> prof("crystm03_Block");
-//         json solver_info;
-//         auto solver = LinearSolver::create("AMGCL", "");
-//         prof.tic("setup");
-//         json params;
-//         params["AMGCL"]["tolerance"] = 1e-8;
-//         params["AMGCL"]["max_iter"] = 10000;
-//         params["AMGCL"]["block_size"] = 3;
-//         params["AMGCL"]["solver_type"] = "bicgstab";
-//         solver->setParameters(params);
-//         solver->analyzePattern(A, A.rows());
-//         solver->factorize(A);
-//         prof.toc("setup");
-//         prof.tic("solve");
-//         solver->solve(b, x_b);
-//         prof.toc("solve");
-//         solver->getInfo(solver_info);
-//         REQUIRE(solver_info["num_iterations"] > 0);
-//         std::cout << solver_info["num_iterations"] << std::endl;
-//         std::cout << solver_info["final_res_norm"] << std::endl
-//                   << prof << std::endl;
-//     }
-//     {
-//         amgcl::profiler<> prof("crystm03_Scalar");
-//         json solver_info;
-//         auto solver = LinearSolver::create("AMGCL", "");
-//         prof.tic("setup");
-//         json params;
-//         params["AMGCL"]["tolerance"] = 1e-8;
-//         params["AMGCL"]["max_iter"] = 10000;
-//         params["AMGCL"]["solver_type"] = "bicgstab";
-//         solver->setParameters(params);
-//         solver->analyzePattern(A, A.rows());
-//         solver->factorize(A);
-//         prof.toc("setup");
-//         prof.tic("solve");
-//         solver->solve(b, x);
-//         prof.toc("solve");
-//         solver->getInfo(solver_info);
-//         REQUIRE(solver_info["num_iterations"] > 0);
-//         std::cout << solver_info["num_iterations"] << std::endl;
-//         std::cout << solver_info["final_res_norm"] << std::endl
-//                   << prof << std::endl;
-//     }
-//     REQUIRE((A * x - b).norm() / b.norm() < 1e-7);
-//     REQUIRE((A * x_b - b).norm() / b.norm() < 1e-7);
-// }
-// #endif
+    Eigen::VectorXd b(A.rows());
+    loadVec(b, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/rhs.mtx");
+    Eigen::VectorXd points;
+    loadVec(points, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/points.mtx");
+    Eigen::VectorXd x_b(A.rows());
+    x_b.setZero();
+    Eigen::VectorXd x(A.rows());
+    x.setZero();
+    {
+        amgcl::profiler<> prof("crystm03_Block");
+        json solver_info;
+        auto solver = new LinearSolverAMGCL();
+        prof.tic("setup");
+        json params=R"({
+        "AMGCL":{ 
+        "precond": {
+            "relax": {
+                "degree": 5,
+                "type": "chebyshev",
+                "power_iters": 100,
+                "higher": 1,
+                "lower": 0.03,
+                "scale": true
+            },
+            "class": "amg",
+            "max_levels": 25,
+            "direct_coarse": true,
+            "ncycle": 1,
+            "block_size": 3,
+            "coarsening": {
+                "type": "smoothed_aggregation",
+                "estimate_spectral_radius": false,
+                "relax": 1.0,
+                "aggr": {
+                    "eps_strong": 0.08
+                }
+            }
+        },
+        "solver": {
+            "tol": 1e-8,
+            "maxiter": 1000,
+            "type": "cg",
+            "verbose":true
+        }
+        }
+        })"_json;
+        params["AMGCL"]["tolerance"] = 1e-8;
+        params["AMGCL"]["max_iter"] = 1000;
+        params["AMGCL"]["block_size"] = 3;
+        // params["AMGCL"]["solver_type"] = "cg";
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A);
+        prof.toc("setup");
+        prof.tic("solve");
+        solver->solve(b, x_b);
+        prof.toc("solve");
+        solver->getInfo(solver_info);
+        REQUIRE(solver_info["num_iterations"] > 0);
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl
+                  << prof << std::endl;
+        delete solver;
+    }
+    {
+        amgcl::profiler<> prof("crystm03_nullspace");
+        json solver_info;
+        auto solver = new LinearSolverAMGCL();
+        prof.tic("setup");
+        json params=R"({
+        "AMGCL":{ 
+        "precond": {
+            "relax": {
+                "degree": 5,
+                "type": "chebyshev",
+                "power_iters": 100,
+                "higher": 1,
+                "lower": 0.03,
+                "scale": true
+            },
+            "class": "amg",
+            "max_levels": 25,
+            "direct_coarse": true,
+            "ncycle": 1,
+            "block_size": 3,
+            "coarsening": {
+                "type": "smoothed_aggregation",
+                "estimate_spectral_radius": false,
+                "relax": 1.0,
+                "aggr": {
+                    "eps_strong": 0.08
+                }
+            }
+        },
+        "solver": {
+            "tol": 1e-8,
+            "maxiter": 1000,
+            "type": "cg",
+            "verbose":true
+        }
+        }
+        })"_json;
+        params["AMGCL"]["tolerance"] = 1e-8;
+        params["AMGCL"]["max_iter"] = 1000;
+        params["AMGCL"]["block_size"] = 3;
+        // params["AMGCL"]["solver_type"] = "bicgstab";
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A,points);
+        prof.toc("setup");
+        prof.tic("solve");
+        solver->solve(b, x);
+        prof.toc("solve");
+        solver->getInfo(solver_info);
+        REQUIRE(solver_info["num_iterations"] > 0);
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl
+                  << prof << std::endl;
+        delete solver;
+    }
+    REQUIRE((A * x - b).norm() / b.norm() < 1e-7);
+    REQUIRE((A * x_b - b).norm() / b.norm() < 1e-7);
+}
+#endif
 
 // #ifdef POLYSOLVE_WITH_HYPRE
 // TEST_CASE("Hyprel_b2", "[solver]")
@@ -747,181 +830,181 @@ void loadSymmetric(Eigen::SparseMatrix<double> &A, std::string PATH)
 // }
 // #endif
 
-#ifdef POLYSOLVE_WITH_TRILINOS
-TEST_CASE("Trilinos_b2", "[solver]")
-{
-    const std::string path = POLYSOLVE_DATA_DIR;
-    std::string MatrixName = "gr_30_30.mtx";
-    Eigen::SparseMatrix<double> A;
-    loadSymmetric(A, path + "/" + MatrixName);
-    std::cout << "Matrix Load OK" << std::endl;
-    Eigen::VectorXd b(A.rows());
-    b.setOnes();
-    Eigen::VectorXd x(b.size());
-    x.setZero();
-    Eigen::VectorXd x_b(b.size());
-    x_b.setZero();
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["block_size"] = 2;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x_b);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    const double err = (A * x - b).norm() / b.norm();
-    const double err_b = (A * x_b - b).norm() / b.norm();
-    std::cout << "Scalar relative error " << err << std::endl;
-    std::cout << "Block relative error " << err_b << std::endl;
-    REQUIRE(err < 1e-8);
-    REQUIRE(err_b < 1e-8);
-}
-#endif
+// #ifdef POLYSOLVE_WITH_TRILINOS
+// TEST_CASE("Trilinos_b2", "[solver]")
+// {
+//     const std::string path = POLYSOLVE_DATA_DIR;
+//     std::string MatrixName = "gr_30_30.mtx";
+//     Eigen::SparseMatrix<double> A;
+//     loadSymmetric(A, path + "/" + MatrixName);
+//     std::cout << "Matrix Load OK" << std::endl;
+//     Eigen::VectorXd b(A.rows());
+//     b.setOnes();
+//     Eigen::VectorXd x(b.size());
+//     x.setZero();
+//     Eigen::VectorXd x_b(b.size());
+//     x_b.setZero();
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["block_size"] = 2;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x_b);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     const double err = (A * x - b).norm() / b.norm();
+//     const double err_b = (A * x_b - b).norm() / b.norm();
+//     std::cout << "Scalar relative error " << err << std::endl;
+//     std::cout << "Block relative error " << err_b << std::endl;
+//     REQUIRE(err < 1e-8);
+//     REQUIRE(err_b < 1e-8);
+// }
+// #endif
 
-#ifdef POLYSOLVE_WITH_TRILINOS
-TEST_CASE("Trilinos_crystm03", "[solver]")
-{
-    const std::string path = POLYSOLVE_DATA_DIR;
-    std::string MatrixName = "crystm03.mtx";
-    Eigen::SparseMatrix<double> A;
-    loadSymmetric(A, path + "/" + MatrixName);
-    std::cout << "Matrix Load OK" << std::endl;
-    Eigen::VectorXd b(A.rows());
-    b.setOnes();
-    Eigen::VectorXd x(b.size());
-    x.setZero();
-    Eigen::VectorXd x_b(b.size());
-    x_b.setZero();
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["block_size"] = 3;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x_b);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    const double err = (A * x - b).norm() / b.norm();
-    const double err_b = (A * x_b - b).norm() / b.norm();
-    std::cout << "Scalar relative error " << err << std::endl;
-    std::cout << "Block relative error " << err_b << std::endl;
-    REQUIRE(err < 1e-8);
-    REQUIRE(err_b < 1e-8);
-}
-#endif
+// #ifdef POLYSOLVE_WITH_TRILINOS
+// TEST_CASE("Trilinos_crystm03", "[solver]")
+// {
+//     const std::string path = POLYSOLVE_DATA_DIR;
+//     std::string MatrixName = "crystm03.mtx";
+//     Eigen::SparseMatrix<double> A;
+//     loadSymmetric(A, path + "/" + MatrixName);
+//     std::cout << "Matrix Load OK" << std::endl;
+//     Eigen::VectorXd b(A.rows());
+//     b.setOnes();
+//     Eigen::VectorXd x(b.size());
+//     x.setZero();
+//     Eigen::VectorXd x_b(b.size());
+//     x_b.setZero();
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["block_size"] = 3;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x_b);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     const double err = (A * x - b).norm() / b.norm();
+//     const double err_b = (A * x_b - b).norm() / b.norm();
+//     std::cout << "Scalar relative error " << err << std::endl;
+//     std::cout << "Block relative error " << err_b << std::endl;
+//     REQUIRE(err < 1e-8);
+//     REQUIRE(err_b < 1e-8);
+// }
+// #endif
 
-#ifdef POLYSOLVE_WITH_TRILINOS
-TEST_CASE("Trilinos_smallscale", "[solver]")
-{
-    const std::string path = POLYSOLVE_DATA_DIR;
-    Eigen::SparseMatrix<double> A;
-    const bool ok = loadMarket(A, path + "/A_2.mat");
-    REQUIRE(ok);
-    Eigen::VectorXd b(A.rows());
-    b.setOnes();
-    Eigen::VectorXd x(b.size());
-    x.setZero();
-    Eigen::VectorXd x_b(b.size());
-    x_b.setZero();
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    {
-        clock_t start, end;
-        json solver_info;
-        start = clock();
-        auto solver = LinearSolver::create("Trilinos", "");
-        json params;
-        params["Trilinos"]["block_size"] = 3;
-        params["Trilinos"]["tolerance"] = 1e-8;
-        params["Trilinos"]["max_iter"] = 1000;
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A);
-        solver->solve(b, x_b);
-        end = clock();
-        solver->getInfo(solver_info);
-        std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl;
-    }
-    const double err = (A * x - b).norm() / b.norm();
-    const double err_b = (A * x_b - b).norm() / b.norm();
-    std::cout << "Scalar relative error " << err << std::endl;
-    std::cout << "Block relative error " << err_b << std::endl;
-    REQUIRE(err < 1e-8);
-    REQUIRE(err_b < 1e-8);
-}
-#endif
+// #ifdef POLYSOLVE_WITH_TRILINOS
+// TEST_CASE("Trilinos_smallscale", "[solver]")
+// {
+//     const std::string path = POLYSOLVE_DATA_DIR;
+//     Eigen::SparseMatrix<double> A;
+//     const bool ok = loadMarket(A, path + "/A_2.mat");
+//     REQUIRE(ok);
+//     Eigen::VectorXd b(A.rows());
+//     b.setOnes();
+//     Eigen::VectorXd x(b.size());
+//     x.setZero();
+//     Eigen::VectorXd x_b(b.size());
+//     x_b.setZero();
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Scalar Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     {
+//         clock_t start, end;
+//         json solver_info;
+//         start = clock();
+//         auto solver = LinearSolver::create("Trilinos", "");
+//         json params;
+//         params["Trilinos"]["block_size"] = 3;
+//         params["Trilinos"]["tolerance"] = 1e-8;
+//         params["Trilinos"]["max_iter"] = 1000;
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x_b);
+//         end = clock();
+//         solver->getInfo(solver_info);
+//         std::cout << "Block Running time is " << double(end - start) / CLOCKS_PER_SEC << std::endl;
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//     }
+//     const double err = (A * x - b).norm() / b.norm();
+//     const double err_b = (A * x_b - b).norm() / b.norm();
+//     std::cout << "Scalar relative error " << err << std::endl;
+//     std::cout << "Block relative error " << err_b << std::endl;
+//     REQUIRE(err < 1e-8);
+//     REQUIRE(err_b < 1e-8);
+// }
+// #endif

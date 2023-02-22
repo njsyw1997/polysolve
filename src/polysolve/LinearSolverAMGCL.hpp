@@ -141,6 +141,7 @@ namespace polysolve
 
         // Factorize system matrix
         virtual void factorize(const StiffnessMatrix &A) override;
+        void factorize(const StiffnessMatrix &A, const Eigen::VectorXd &coo);
 
         // Solve the linear system Ax = b
         virtual void solve(const Ref<const VectorXd> b, Ref<VectorXd> x) override;
