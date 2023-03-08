@@ -8,6 +8,152 @@
 #include <_hypre_utilities.h>
 ////////////////////////////////////////////////////////////////////////////////
 
+int rigid_body_modes(int ndim, const std::vector<double> &coo, std::vector<double> &B, bool transpose = true) {
+
+    size_t n = coo.size();
+    int nmodes = (ndim == 2 ? 3 : 6);
+    B.resize(n * nmodes, 0.0);
+
+    const int stride1 = transpose ? 1 : nmodes;
+    const int stride2 = transpose ? n : 1;
+
+    double sn = 1 / sqrt(n);
+
+    if (ndim == 2) {
+        for(size_t i = 0; i < n; ++i) {
+            size_t nod = i / ndim;
+            size_t dim = i % ndim;
+
+            double x = coo[nod * 2 + 0];
+            double y = coo[nod * 2 + 1];
+
+            // Translation
+            B[i * stride1 + dim * stride2] = sn;
+
+            // Rotation
+            switch(dim) {
+                case 0:
+                    B[i * stride1 + 2 * stride2] = -y;
+                    break;
+                case 1:
+                    B[i * stride1 + 2 * stride2] = x;
+                    break;
+            }
+        }
+    } else if (ndim == 3) {
+        for(size_t i = 0; i < n; ++i) {
+            size_t nod = i / ndim;
+            size_t dim = i % ndim;
+
+            double x = coo[nod * 3 + 0];
+            double y = coo[nod * 3 + 1];
+            double z = coo[nod * 3 + 2];
+
+            // Translation
+            B[i * stride1 + dim * stride2] = sn;
+
+            // Rotation
+            switch(dim) {
+                case 0:
+                    B[i * stride1 + 5 * stride2] = -y;
+                    B[i * stride1 + 4 * stride2] = z;
+                    break;
+                case 1:
+                    B[i * stride1 + 5 * stride2] = x;
+                    B[i * stride1 + 3 * stride2] = -z;
+                    break;
+                case 2:
+                    B[i * stride1 + 3 * stride2] =  y;
+                    B[i * stride1 + 4 * stride2] = -x;
+                    break;
+            }
+        }
+    }
+
+    // Orthonormalization
+    std::array<double, 6> dot;
+    for(int i = ndim; i < nmodes; ++i) {
+        std::fill(dot.begin(), dot.end(), 0.0);
+        for(size_t j = 0; j < n; ++j) {
+            for(int k = 0; k < i; ++k)
+                dot[k] += B[j * stride1 + k * stride2] * B[j * stride1 + i * stride2];
+        }
+        double s = 0.0;
+        for(size_t j = 0; j < n; ++j) {
+            for(int k = 0; k < i; ++k)
+                B[j * stride1 + i * stride2] -= dot[k] * B[j * stride1 + k * stride2];
+            s += B[j * stride1 + i * stride2] * B[j * stride1 + i * stride2];
+        }
+        s = sqrt(s);
+        for(size_t j = 0; j < n; ++j)
+            B[j * stride1 + i * stride2] /= s;
+    }
+
+    return nmodes;
+}
+
+
+void set_value(HYPRE_IJVector &vec, int i, double value){
+    const HYPRE_Int index[1] = {i};
+    const HYPRE_Complex v[1] = {value};
+    HYPRE_IJVectorSetValues(vec, 1, index, v);
+}
+void compute_rbm(Eigen::MatrixXd &V, int ndim, HYPRE_ParVector *interp_vecs, HYPRE_IJVector *ij_rbm)
+{
+    std::vector<double> coo;
+    std::vector<double> null;
+    coo.resize(V.cols()*V.rows());
+        for (size_t i = 0; i < V.rows(); i++)
+        {
+            for (size_t j = 0; j < V.cols(); j++)
+            {
+                coo[j+i*3]=V(i,j);
+            }
+            
+        }            
+    rigid_body_modes(ndim, coo, null); // TODO: COO requires to change the form of vector<double>
+    void *object;
+    int ierr=0;
+    int n=V.rows();
+    int nmodes = (ndim == 2 ? 3 : 6);
+    interp_vecs = hypre_CTAlloc(HYPRE_ParVector, ndim, HYPRE_MEMORY_HOST);
+    ij_rbm = hypre_CTAlloc(HYPRE_IJVector, ndim, HYPRE_MEMORY_HOST);
+    for (size_t dim = 0; dim < ndim; dim++)
+    {
+#ifdef HYPRE_WITH_MPI
+        HYPRE_IJVectorCreate(MPI_COMM_WORLD, 0, n*nmodes-1, &ij_rbm[dim]);
+#else
+        HYPRE_IJVectorCreate(hypre_MPI_COMM_WORLD, 0,n*nmodes-1, &ij_rbm[dim]);
+#endif
+        HYPRE_IJVectorSetObjectType(ij_rbm[dim], HYPRE_PARCSR);
+        HYPRE_IJVectorInitialize(ij_rbm[dim]);
+    }    
+    for (size_t i = 0; i < n; i++)
+        {
+        for (size_t dim = 0; dim < ndim; dim++){
+            for (size_t j = 0; j < nmodes; j++)
+            {
+                const HYPRE_Int index[1] = {n+j};
+                const HYPRE_Complex v[1] = {null[n*ndim*nmodes+dim*nmodes+j]};
+                HYPRE_IJVectorSetValues(ij_rbm[dim], 1, index, v);
+                // set_value(ij_rbm[dim],n+j,null[n*ndim*nmodes+dim*nmodes+j]);
+            }        
+            
+        }      
+        
+    }
+    for (size_t dim = 0; dim <ndim; dim++)
+    {
+        HYPRE_IJVectorAssemble(ij_rbm[dim]);
+        ierr=HYPRE_IJVectorGetObject(ij_rbm[dim], &object);
+        interp_vecs[dim] = (HYPRE_ParVector) object;
+    } 
+    if (ierr)
+    {
+        hypre_printf("ERROR: Problem reading in rbm!\n");
+        exit(1);
+    }
+}
 namespace polysolve
 {
     
@@ -198,6 +344,7 @@ namespace polysolve
                 // Hypre recommend setting 0.5 for 3D problem, 0.25 for 2D and scalar problem
                 HYPRE_BoomerAMGSetStrongThreshold(amg_precond, 0.5);
             }
+            
             // TODO Adding HYPRE_MGR to do block optimization?
 
             // Nodal coarsening options (nodal coarsening is required for this solver)
@@ -221,10 +368,8 @@ namespace polysolve
             HYPRE_BoomerAMGSetInterpVecQMax(amg_precond, q_max);
             // HYPRE_BoomerAMGSetSmoothInterpVectors(amg_precond, smooth_interp_vectors);
             // HYPRE_BoomerAMGSetInterpRefine(amg_precond, interp_refine);
-
-            // RecomputeRBMs();
-            // HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
         }
+
 
     } // anonymous namespace
 
@@ -306,9 +451,63 @@ namespace polysolve
 #endif
 
         HypreBoomerAMG_SetDefaultOptions(precond);
+        HYPRE_ParVector     *interp_vecs = NULL;
+        HYPRE_IJVector      *ij_rbm = NULL;
         if (dimension_ > 1)
         {
             HypreBoomerAMG_SetElasticityOptions(precond, dimension_);
+            // compute_rbm(test_vertices,dimension_,interp_vecs,ij_rbm);
+            int ndim=dimension_;
+            std::vector<double> coo;
+            std::vector<double> null;
+            coo.resize(test_vertices.cols()*test_vertices.rows());
+                for (size_t i = 0; i < test_vertices.rows(); i++)
+                {
+                    for (size_t j = 0; j < test_vertices.cols(); j++)
+                    {
+                        coo[j+i*test_vertices.cols()]=test_vertices(i,j);
+                    }
+                    
+                }            
+            rigid_body_modes(ndim, coo, null); // TODO: COO requires to change the form of vector<double>
+            void *object;
+            int ierr=0;
+            int n=test_vertices.rows();
+            int nmodes = (ndim == 2 ? 3 : 6);
+            interp_vecs = hypre_CTAlloc(HYPRE_ParVector, nmodes, HYPRE_MEMORY_HOST);
+            ij_rbm = hypre_CTAlloc(HYPRE_IJVector, nmodes, HYPRE_MEMORY_HOST);
+            for (size_t mode = 0; mode < nmodes; mode++)
+            {
+#ifdef HYPRE_WITH_MPI
+                HYPRE_IJVectorCreate(MPI_COMM_WORLD, 0, coo.size()-1, &ij_rbm[mode]);
+#else
+                HYPRE_IJVectorCreate(hypre_MPI_COMM_WORLD, 0,coo.size()-1, &ij_rbm[mode]);
+#endif
+                HYPRE_IJVectorSetObjectType(ij_rbm[mode], HYPRE_PARCSR);
+                HYPRE_IJVectorInitialize(ij_rbm[mode]);
+            }    
+            for (size_t i = 0; i < nmodes; i++)
+                {
+                for (size_t j = 0; j < coo.size(); j++)
+                {
+                    const HYPRE_Int index[1] = {j};
+                    const HYPRE_Complex v[1] = {null[i*coo.size()+j]};
+                    HYPRE_IJVectorSetValues(ij_rbm[i], 1, index, v);
+                    // set_value(ij_rbm[dim],n+j,null[n*ndim*nmodes+dim*nmodes+j]);
+                }           
+            }
+            for (size_t mode = 0; mode <nmodes; mode++)
+            {
+                HYPRE_IJVectorAssemble(ij_rbm[mode]);
+                ierr=HYPRE_IJVectorGetObject(ij_rbm[mode], &object);
+                interp_vecs[mode] = (HYPRE_ParVector) object;
+            } 
+            if (ierr)
+            {
+                hypre_printf("ERROR: Problem reading in rbm!\n");
+                exit(1);
+            }
+            HYPRE_BoomerAMGSetInterpVectors(precond, nmodes,interp_vecs);
         }
 
         /*TO DO: Smoothed Aggregation*/
@@ -359,6 +558,12 @@ namespace polysolve
 
         HYPRE_IJVectorDestroy(b);
         HYPRE_IJVectorDestroy(x);
+        for (int i = 0; i < dimension_; i++)
+        {
+            HYPRE_IJVectorDestroy(ij_rbm[i]);
+        }
+        hypre_TFree(ij_rbm, HYPRE_MEMORY_HOST);
+        hypre_TFree(interp_vecs, HYPRE_MEMORY_HOST);
     }
 
     ////////////////////////////////////////////////////////////////////////////////

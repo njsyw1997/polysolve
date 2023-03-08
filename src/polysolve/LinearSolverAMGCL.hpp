@@ -32,7 +32,10 @@
 #include <amgcl/adapter/eigen.hpp>
 #include <amgcl/adapter/block_matrix.hpp>
 #include <amgcl/profiler.hpp>
+
 #include <amgcl/coarsening/rigid_body_modes.hpp>
+#include <amgcl/coarsening/as_scalar.hpp>
+
 #include <memory>
 #include <type_traits>
 
@@ -44,6 +47,8 @@
 // and CSC are the same. If the matrix is not symmetric and you pass in a
 // column-major matrix, the solver will actually solve A^T x = b.
 //
+
+extern Eigen::MatrixXd test_vertices;
 
 namespace polysolve
 {
@@ -75,7 +80,7 @@ namespace polysolve
 
         // Factorize system matrix
         virtual void factorize(const StiffnessMatrix &A) override;
-        void factorize(const StiffnessMatrix &A, const VectorXd &coo);
+        void factorize(const StiffnessMatrix &A, const std::vector<double> &coo);
 
         // Solve the linear system Ax = b
         virtual void solve(const Ref<const VectorXd> b, Ref<VectorXd> x) override;
@@ -93,7 +98,7 @@ namespace polysolve
         json params_;
         typename Backend::params backend_params_;
         int precond_num_;
-
+        std::vector<double> null;
         //Timer, test only
         amgcl::profiler<> prof;
 
@@ -141,7 +146,7 @@ namespace polysolve
 
         // Factorize system matrix
         virtual void factorize(const StiffnessMatrix &A) override;
-        void factorize(const StiffnessMatrix &A, const Eigen::VectorXd &coo);
+        void factorize(const StiffnessMatrix &A, const std::vector<double> &coo);
 
         // Solve the linear system Ax = b
         virtual void solve(const Ref<const VectorXd> b, Ref<VectorXd> x) override;

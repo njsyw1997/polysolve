@@ -32,6 +32,7 @@
 #include <unsupported/Eigen/IterativeSolvers>
 
 ////////////////////////////////////////////////////////////////////////////////
+Eigen::MatrixXd test_vertices;
 
 namespace polysolve
 {

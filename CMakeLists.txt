@@ -23,7 +23,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
     message(STATUS "Using local options file: ${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake")
     include(${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
 endif()
-
+set(FETCHCONTENT_SOURCE_DIR_AMGCL "/home/yiwei/amgcl" CACHE PATH "When not empty, overrides where to find pre-populated content for amgcl")
 # PATH to Trilinos lib, need to update for installing trilinos in polysolve
 set(CMAKE_PREFIX_PATH "/home/yiwei/Trilinos/lib")
 

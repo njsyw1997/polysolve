@@ -7,6 +7,44 @@
 #include <boost/property_tree/json_parser.hpp>
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string indent(int level)
+    {
+        std::string s;
+        for (int i = 0; i<level; i++) s += "  ";
+        return s;
+    }
+
+void printTree(boost::property_tree::ptree &pt, int level)
+{
+    if (pt.empty())
+    {
+        std::cout << "\"" << pt.data() << "\"";
+    }
+
+    else
+    {
+        if (level) std::cout << std::endl;
+
+        std::cout << indent(level) << "{" << std::endl;
+
+        for (boost::property_tree::ptree::iterator pos = pt.begin(); pos != pt.end();)
+        {
+            std::cout << indent(level + 1) << "\"" << pos->first << "\": ";
+
+            printTree(pos->second, level + 1);
+            ++pos;
+            if (pos != pt.end())
+            {
+                std::cout << ",";
+            }
+            std::cout << std::endl;
+        }
+
+        std::cout << indent(level) << " }";
+    }
+    std::cout << std::endl;
+    return;
+}
 namespace polysolve
 {
     bool is_test = true;
@@ -156,7 +194,7 @@ namespace polysolve
         iterations_ = 0;
         residual_error_ = 0;
     }
-    void LinearSolverAMGCL::factorize(const StiffnessMatrix &Ain, const Eigen::VectorXd &coo)
+    void LinearSolverAMGCL::factorize(const StiffnessMatrix &Ain, const std::vector<double> &coo)
     {
         if (block_size_ == 2)
         {
@@ -264,6 +302,29 @@ namespace polysolve
         boost::property_tree::ptree pt_params;
         boost::property_tree::read_json(ss_params, pt_params);
 
+        //  Set null space
+        if (true)
+        {
+            std::vector<double> coo;
+            coo.resize(test_vertices.cols()*test_vertices.rows());
+            for (size_t i = 0; i < test_vertices.rows(); i++)
+            {
+                for (size_t j = 0; j < test_vertices.cols(); j++)
+                {
+                    coo[j+i*3]=test_vertices(i,j);
+                }
+                
+            }
+            
+            int nv;
+            nv = amgcl::coarsening::rigid_body_modes(BLOCK_SIZE, coo, null); // TODO: COO requires to change the form of vector<double>
+            pt_params.put("precond.coarsening.nullspace.cols", nv);
+            pt_params.put("precond.coarsening.nullspace.rows", Ain.rows());
+            pt_params.put("precond.coarsening.nullspace.B",    &null[0]);
+        }
+        ///////////////////////////////////////////////////////
+
+        // pt_params.put("precond.coarsening.aggr.eps_strong", 0.08);
         auto A = std::tie(numRows, ia, ja, a);
         auto Ab = amgcl::adapter::block_matrix<dmat_type>(A);
         prof.tic("setup");
@@ -274,7 +335,7 @@ namespace polysolve
     }
 
     template <int BLOCK_SIZE>
-    void LinearSolverAMGCL_Block<BLOCK_SIZE>::factorize(const StiffnessMatrix &Ain, const VectorXd &coo)
+    void LinearSolverAMGCL_Block<BLOCK_SIZE>::factorize(const StiffnessMatrix &Ain, const std::vector<double> &coo)
     {
         assert(precond_num_ > 0);
 
@@ -295,16 +356,16 @@ namespace polysolve
         // AMGCL takes the parameters as a Boost property_tree (i.e., another JSON data structure)
         std::stringstream ss_params;
         ss_params << params_;
+        std::cout<<ss_params.str()<<std::endl;
         boost::property_tree::ptree pt_params;
-        boost::property_tree::read_json(ss_params, pt_params);
-
-        std::vector<double> null;
+        boost::property_tree::read_json(ss_params, pt_params);        
         int nv;
         nv = amgcl::coarsening::rigid_body_modes(BLOCK_SIZE, coo, null); // TODO: COO requires to change the form of vector<double>
         pt_params.put("precond.coarsening.nullspace.cols", nv);
         pt_params.put("precond.coarsening.nullspace.rows", Ain.rows());
         pt_params.put("precond.coarsening.nullspace.B",    &null[0]);
-
+        pt_params.put("precond.coarsening.aggr.eps_strong", 0.08);
+        // printTree(pt_params,3);
         auto A = std::tie(numRows, ia, ja, a);
         auto Ab = amgcl::adapter::block_matrix<dmat_type>(A);
         prof.tic("setup");

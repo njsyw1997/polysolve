@@ -7,12 +7,15 @@ using json = nlohmann::json;
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 #include <memory>
+#include <vector>
 
 #define POLYSOLVE_DELETE_MOVE_COPY(Base) \
     Base(Base &&) = delete;                    \
     Base &operator=(Base &&) = delete;         \
     Base(const Base &) = delete;               \
     Base &operator=(const Base &) = delete;
+
+extern Eigen::MatrixXd test_vertices;
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO:
@@ -84,6 +87,7 @@ namespace polysolve
 
         // Factorize system matrix
         virtual void factorize(const StiffnessMatrix &A) {}
+        // virtual void factorize(const StiffnessMatrix &A, Eigen::MatrixXd V) {factorize(A)}
 
         //
         // @brief         { Solve the linear system Ax = b }

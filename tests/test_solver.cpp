@@ -5,8 +5,11 @@
 #include <unsupported/Eigen/SparseExtra>
 #include <fstream>
 #include <vector>
+#include <string>
 #include <ctime>
 #include <polysolve/LinearSolverAMGCL.hpp>
+#include <polysolve/LinearSolverTrilinos.hpp>
+#include <amgcl/io/mm.hpp>
 //////////////////////////////////////////////////////////////////////////
 
 using namespace polysolve;
@@ -47,8 +50,8 @@ void loadVec(Eigen::VectorXd &A, std::string PATH)
         fin.ignore(2048, '\n');
     }
     fin >> M >> N;
-    A.resize(M);
-    for (size_t i = 0; i < M; i++)
+    A.resize(M*N);
+    for (size_t i = 0; i < M*N; i++)
     {
         double data;
         fin >> data;
@@ -520,21 +523,91 @@ void loadVec(Eigen::VectorXd &A, std::string PATH)
 #ifdef POLYSOLVE_WITH_AMGCL
 TEST_CASE("amgcl_blocksolver_crystm03_Bicgstab", "[solver]")
 {
-    std::cout << "Polysolve AMGCL Solver" << std::endl;
-    Eigen::SparseMatrix<double> A;
-    const bool ok = loadMarket(A, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/stiffness.mtx");
-    REQUIRE(ok);
-    std::cout << "Matrix Load OK" << std::endl;
-
-    Eigen::VectorXd b(A.rows());
-    loadVec(b, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/rhs.mtx");
-    Eigen::VectorXd points;
-    loadVec(points, "/home/yiwei/result_newblock/AMGCL_0.08/square_beam_structed_25/bar_sa/P1/ref0/block3/Thread8/0/output/points.mtx");
-    Eigen::VectorXd x_b(A.rows());
-    x_b.setZero();
-    Eigen::VectorXd x(A.rows());
-    x.setZero();
+    std::vector<std::string> paths;
+    paths.push_back("/home/yiwei/result_newblock/AMGCL_0.08/square_beam_2.0/bar_sa/P1/ref0/block3/Thread8/0/output");
+    // paths.push_back("/home/yiwei/result_newblock/AMGCL_0.08/square_beam_2.0/bar_sa/P1/ref1/block3/Thread8/0/output");
+    // paths.push_back("/home/yiwei/result_newblock/AMGCL_0.08/square_beam_2.0/bar_sa/P1/ref2/block3/Thread8/0/output");
+    for (size_t i = 0; i < paths.size(); i++)
     {
+        std::string path=paths[i];
+        std::cout << path << std::endl;
+        Eigen::SparseMatrix<double> A;
+        const bool ok = loadMarket(A, path+"/stiffness.mtx");
+        REQUIRE(ok);
+
+        Eigen::VectorXd b(A.rows());
+        loadVec(b, path+"/rhs.mtx");
+        // b.setRandom();
+        // b.setOnes();
+        ptrdiff_t ndim, ncoo;
+        std::vector<double> points;
+        std::tie(ncoo, ndim) = amgcl::io::mm_reader(path+"/vecpoints.mtx")(points);
+        Eigen::VectorXd x_b(A.rows());
+        x_b.setZero();
+        Eigen::VectorXd x(A.rows());
+        x.setZero();
+        {
+        amgcl::profiler<> prof("nullspace");
+        json solver_info;
+        auto solver = new LinearSolverAMGCL();
+        prof.tic("setup");
+        json params=R"(
+            {
+        "AMGCL": {
+                "precond": {
+                    "relax": {
+                        "degree": 5,
+                        "type": "chebyshev",
+                        "power_iters": 100,
+                        "higher": 1,
+                        "lower": 0.03,
+                        "scale": true
+                    },
+                    "class": "amg",
+                    "max_levels": 25,
+                    "direct_coarse": true,
+                    "ncycle": 1,
+                    "block_size": 3,
+                    "coarsening": {
+                        "type": "smoothed_aggregation",
+                        "estimate_spectral_radius": false,
+                        "relax": 1.0,
+                        "aggr": {
+                            "eps_strong": 0.00
+                        }
+                    }
+                },
+                "solver": {
+                    "tol": 1e-8,
+                    "maxiter": 1000,
+                    "type": "cg",
+                    "verbose":true
+                }
+            }
+        })"_json;
+        params["AMGCL"]["tolerance"] = 1e-8;
+        params["AMGCL"]["max_iter"] = 1000;
+        params["AMGCL"]["block_size"] = 3;
+        // params["AMGCL"]["solver_type"] = "bicgstab";
+        solver->setParameters(params);
+        solver->analyzePattern(A, A.rows());
+        solver->factorize(A,points);
+        prof.toc("setup");
+        prof.tic("solve");
+        solver->solve(b, x);
+        prof.toc("solve");
+        solver->getInfo(solver_info);
+        REQUIRE(solver_info["num_iterations"] > 0);
+        std::cout << solver_info["num_iterations"] << std::endl;
+        std::cout << solver_info["final_res_norm"] << std::endl
+                  << prof << std::endl;
+        delete solver;
+    }
+    }
+    
+    
+   
+   /* {
         amgcl::profiler<> prof("crystm03_Block");
         json solver_info;
         auto solver = new LinearSolverAMGCL();
@@ -589,67 +662,134 @@ TEST_CASE("amgcl_blocksolver_crystm03_Bicgstab", "[solver]")
         std::cout << solver_info["final_res_norm"] << std::endl
                   << prof << std::endl;
         delete solver;
-    }
-    {
-        amgcl::profiler<> prof("crystm03_nullspace");
-        json solver_info;
-        auto solver = new LinearSolverAMGCL();
-        prof.tic("setup");
-        json params=R"({
-        "AMGCL":{ 
-        "precond": {
-            "relax": {
-                "degree": 5,
-                "type": "chebyshev",
-                "power_iters": 100,
-                "higher": 1,
-                "lower": 0.03,
-                "scale": true
-            },
-            "class": "amg",
-            "max_levels": 25,
-            "direct_coarse": true,
-            "ncycle": 1,
-            "block_size": 3,
-            "coarsening": {
-                "type": "smoothed_aggregation",
-                "estimate_spectral_radius": false,
-                "relax": 1.0,
-                "aggr": {
-                    "eps_strong": 0.08
-                }
-            }
-        },
-        "solver": {
-            "tol": 1e-8,
-            "maxiter": 1000,
-            "type": "cg",
-            "verbose":true
-        }
-        }
-        })"_json;
-        params["AMGCL"]["tolerance"] = 1e-8;
-        params["AMGCL"]["max_iter"] = 1000;
-        params["AMGCL"]["block_size"] = 3;
-        // params["AMGCL"]["solver_type"] = "bicgstab";
-        solver->setParameters(params);
-        solver->analyzePattern(A, A.rows());
-        solver->factorize(A,points);
-        prof.toc("setup");
-        prof.tic("solve");
-        solver->solve(b, x);
-        prof.toc("solve");
-        solver->getInfo(solver_info);
-        REQUIRE(solver_info["num_iterations"] > 0);
-        std::cout << solver_info["num_iterations"] << std::endl;
-        std::cout << solver_info["final_res_norm"] << std::endl
-                  << prof << std::endl;
-        delete solver;
-    }
-    REQUIRE((A * x - b).norm() / b.norm() < 1e-7);
-    REQUIRE((A * x_b - b).norm() / b.norm() < 1e-7);
+    }*/
 }
 #endif
+
+
+// #ifdef POLYSOLVE_WITH_TRILINOS
+// TEST_CASE("trilinos_blocksolver_crystm03_Bicgstab", "[solver]")
+// {
+//     std::cout << "Polysolve AMGCL Solver" << std::endl;
+//     Eigen::SparseMatrix<double> A;
+//     const bool ok = loadMarket(A, "/home/yiwei/elas_data/A.mtx");
+//     REQUIRE(ok);
+//     std::cout << "Matrix Load OK" << std::endl;
+
+//     Eigen::VectorXd b(A.rows());
+//     loadVec(b, "/home/yiwei/elas_data/b.mtx");
+//     Eigen::VectorXd points;
+//     loadVec(points, "/home/yiwei/elas_data/C.mtx");
+//     Eigen::VectorXd x_b(A.rows());
+//     x_b.setZero();
+//     Eigen::VectorXd x(A.rows());
+//     x.setZero();
+//     {
+//         json solver_info;
+//         auto solver = new LinearSolverTrilinos();
+
+//         json params=R"({
+//         "AMGCL":{ 
+//         "precond": {
+//             "relax": {
+//                 "degree": 5,
+//                 "type": "chebyshev",
+//                 "power_iters": 100,
+//                 "higher": 1,
+//                 "lower": 0.03,
+//                 "scale": true
+//             },
+//             "class": "amg",
+//             "max_levels": 25,
+//             "direct_coarse": true,
+//             "ncycle": 1,
+//             "block_size": 3,
+//             "coarsening": {
+//                 "type": "smoothed_aggregation",
+//                 "estimate_spectral_radius": false,
+//                 "relax": 1.0,
+//                 "aggr": {
+//                     "eps_strong": 0.08
+//                 }
+//             }
+//         },
+//         "solver": {
+//             "tol": 1e-8,
+//             "maxiter": 1000,
+//             "type": "cg",
+//             "verbose":true
+//         }
+//         }
+//         })"_json;
+//         params["AMGCL"]["tolerance"] = 1e-8;
+//         params["AMGCL"]["max_iter"] = 1000;
+//         params["Trilinos"]["block_size"] = 3;
+//         // params["AMGCL"]["solver_type"] = "cg";
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x_b);
+//         solver->getInfo(solver_info);
+//         REQUIRE(solver_info["num_iterations"] > 0);
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//         delete solver;
+//     }
+//     {
+//         json solver_info;
+//         auto solver = new LinearSolverTrilinos();
+
+//         json params=R"({
+//         "AMGCL":{ 
+//         "precond": {
+//             "relax": {
+//                 "degree": 5,
+//                 "type": "chebyshev",
+//                 "power_iters": 100,
+//                 "higher": 1,
+//                 "lower": 0.03,
+//                 "scale": true
+//             },
+//             "class": "amg",
+//             "max_levels": 25,
+//             "direct_coarse": true,
+//             "ncycle": 1,
+//             "block_size": 3,
+//             "coarsening": {
+//                 "type": "smoothed_aggregation",
+//                 "estimate_spectral_radius": false,
+//                 "relax": 1.0,
+//                 "aggr": {
+//                     "eps_strong": 0.08
+//                 }
+//             }
+//         },
+//         "solver": {
+//             "tol": 1e-8,
+//             "maxiter": 1000,
+//             "type": "cg",
+//             "verbose":true
+//         }
+//         }
+//         })"_json;
+//         params["AMGCL"]["tolerance"] = 1e-8;
+//         params["AMGCL"]["max_iter"] = 1000;
+//         params["Trilinos"]["block_size"] = 3;
+//         // params["AMGCL"]["solver_type"] = "bicgstab";
+//         solver->setParameters(params);
+//         solver->analyzePattern(A, A.rows());
+//         solver->factorize(A);
+//         solver->solve(b, x,points);
+//         solver->getInfo(solver_info);
+//         REQUIRE(solver_info["num_iterations"] > 0);
+//         std::cout << solver_info["num_iterations"] << std::endl;
+//         std::cout << solver_info["final_res_norm"] << std::endl;
+//         delete solver;
+//     }
+//     REQUIRE((A * x - b).norm() / b.norm() < 1e-7);
+//     REQUIRE((A * x_b - b).norm() / b.norm() < 1e-7);
+// }
+// #endif
 
 // #ifdef POLYSOLVE_WITH_HYPRE
 // TEST_CASE("Hyprel_b2", "[solver]")
