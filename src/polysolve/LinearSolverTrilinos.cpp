@@ -4,95 +4,99 @@
 #include <polysolve/LinearSolverTrilinos.hpp>
 #include <string>
 #include <vector>
+#include <unsupported/Eigen/SparseExtra>
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace polysolve
 {
     namespace{
-    int rigid_body_mode(int ndim, const std::vector<double> &coo, std::vector<double> &B, bool transpose = true) {
+    ////////////////////////////////////////////////////////////////
+    // int rigid_body_mode(int ndim, const std::vector<double> &coo, std::vector<double> &B, bool transpose = true) {
 
-        size_t n = coo.size();
-        int nmodes = (ndim == 2 ? 3 : 6);
-        B.resize(n * nmodes, 0.0);
+    //     size_t n = coo.size();
+    //     int nmodes = (ndim == 2 ? 3 : 6);
+    //     B.resize(n * nmodes, 0.0);
 
-        const int stride1 = transpose ? 1 : nmodes;
-        const int stride2 = transpose ? n : 1;
-        // int stride1 = nmodes;
-        // int stride2 = 1;
+    //     const int stride1 = transpose ? 1 : nmodes;
+    //     const int stride2 = transpose ? n : 1;
+    //     // int stride1 = nmodes;
+    //     // int stride2 = 1;
 
-        double sn = 1 / sqrt(n);
+    //     double sn = 1 / sqrt(n);
 
-        if (ndim == 2) {
-            for(size_t i = 0; i < n; ++i) {
-                size_t nod = i / ndim;
-                size_t dim = i % ndim;
+    //     if (ndim == 2) {
+    //         for(size_t i = 0; i < n; ++i) {
+    //             size_t nod = i / ndim;
+    //             size_t dim = i % ndim;
 
-                double x = coo[nod * 2 + 0];
-                double y = coo[nod * 2 + 1];
+    //             double x = coo[nod * 2 + 0];
+    //             double y = coo[nod * 2 + 1];
 
-                // Translation
-                B[i * stride1 + dim * stride2] = sn;
+    //             // Translation
+    //             B[i * stride1 + dim * stride2] = sn;
 
-                // Rotation
-                switch(dim) {
-                    case 0:
-                        B[i * stride1 + 2 * stride2] = -y;
-                        break;
-                    case 1:
-                        B[i * stride1 + 2 * stride2] = x;
-                        break;
-                }
-            }
-        } else if (ndim == 3) {
-            for(size_t i = 0; i < n; ++i) {
-                size_t nod = i / ndim;
-                size_t dim = i % ndim;
+    //             // Rotation
+    //             switch(dim) {
+    //                 case 0:
+    //                     B[i * stride1 + 2 * stride2] = -y;
+    //                     break;
+    //                 case 1:
+    //                     B[i * stride1 + 2 * stride2] = x;
+    //                     break;
+    //             }
+    //         }
+    //     } else if (ndim == 3) {
+    //         for(size_t i = 0; i < n; ++i) {
+    //             size_t nod = i / ndim;
+    //             size_t dim = i % ndim;
 
-                double x = coo[nod * 3 + 0];
-                double y = coo[nod * 3 + 1];
-                double z = coo[nod * 3 + 2];
+    //             double x = coo[nod * 3 + 0];
+    //             double y = coo[nod * 3 + 1];
+    //             double z = coo[nod * 3 + 2];
 
-                // Translation
-                B[i * stride1 + dim * stride2] = sn;
+    //             // Translation
+    //             B[i * stride1 + dim * stride2] = sn;
 
-                // Rotation
-                switch(dim) {
-                    case 0:
-                        B[i * stride1 + 5 * stride2] = -y;
-                        B[i * stride1 + 4 * stride2] = z;
-                        break;
-                    case 1:
-                        B[i * stride1 + 5 * stride2] = x;
-                        B[i * stride1 + 3 * stride2] = -z;
-                        break;
-                    case 2:
-                        B[i * stride1 + 3 * stride2] =  y;
-                        B[i * stride1 + 4 * stride2] = -x;
-                        break;
-                }
-            }
-        }
+    //             // Rotation
+    //             switch(dim) {
+    //                 case 0:
+    //                     B[i * stride1 + 5 * stride2] = -y;
+    //                     B[i * stride1 + 4 * stride2] = z;
+    //                     break;
+    //                 case 1:
+    //                     B[i * stride1 + 5 * stride2] = x;
+    //                     B[i * stride1 + 3 * stride2] = -z;
+    //                     break;
+    //                 case 2:
+    //                     B[i * stride1 + 3 * stride2] =  y;
+    //                     B[i * stride1 + 4 * stride2] = -x;
+    //                     break;
+    //             }
+    //         }
+    //     }
 
-       // Orthonormalization
-        std::array<double, 6> dot;
-        for(int i = ndim; i < nmodes; ++i) {
-            std::fill(dot.begin(), dot.end(), 0.0);
-            for(size_t j = 0; j < n; ++j) {
-                for(int k = 0; k < i; ++k)
-                    dot[k] += B[j * stride1 + k * stride2] * B[j * stride1 + i * stride2];
-            }
-            double s = 0.0;
-            for(size_t j = 0; j < n; ++j) {
-                for(int k = 0; k < i; ++k)
-                    B[j * stride1 + i * stride2] -= dot[k] * B[j * stride1 + k * stride2];
-                s += B[j * stride1 + i * stride2] * B[j * stride1 + i * stride2];
-            }
-            s = sqrt(s);
-            for(size_t j = 0; j < n; ++j)
-                B[j * stride1 + i * stride2] /= s;
-        }
-        return nmodes;
-    }
+    //    // Orthonormalization
+    //     std::array<double, 6> dot;
+    //     for(int i = ndim; i < nmodes; ++i) {
+    //         std::fill(dot.begin(), dot.end(), 0.0);
+    //         for(size_t j = 0; j < n; ++j) {
+    //             for(int k = 0; k < i; ++k)
+    //                 dot[k] += B[j * stride1 + k * stride2] * B[j * stride1 + i * stride2];
+    //         }
+    //         double s = 0.0;
+    //         for(size_t j = 0; j < n; ++j) {
+    //             for(int k = 0; k < i; ++k)
+    //                 B[j * stride1 + i * stride2] -= dot[k] * B[j * stride1 + k * stride2];
+    //             s += B[j * stride1 + i * stride2] * B[j * stride1 + i * stride2];
+    //         }
+    //         s = sqrt(s);
+    //         for(size_t j = 0; j < n; ++j)
+    //             B[j * stride1 + i * stride2] /= s;
+    //     }
+    //     return nmodes;
+    // }
+    // Produce a vector of rigid body modes
+
     }
     LinearSolverTrilinos::LinearSolverTrilinos()
     {
@@ -149,7 +153,8 @@ namespace polysolve
     void LinearSolverTrilinos::factorize(const StiffnessMatrix &Ain)
     {
         assert(precond_num_ > 0);
-
+        // Eigen::saveMarket(Ain,"/home/yiwei/matrix_struct/A_nonLinear.mtx");
+        // Eigen::saveMarket(test_vertices,"/home/yiwei/matrix_struct/vec.mtx");
         Eigen::SparseMatrix<double,Eigen::RowMajor> Arow(Ain);
         int mypid = CommPtr->MyPID();
         int indexBase=0;
@@ -187,7 +192,7 @@ namespace polysolve
     {
         void TrilinosML_SetDefaultOptions(Teuchos::ParameterList &MLList)
         {
-            std::string aggr_type="MIS";
+            std::string aggr_type="Uncoupled-MIS";
             double str_connect=0.08;
             ML_Epetra::SetDefaults("SA", MLList);
             MLList.set("aggregation: type",aggr_type); // Aggresive Method
@@ -202,7 +207,7 @@ namespace polysolve
             MLList.set("smoother: Chebyshev alpha",30.0);
 
             //Coarser Settings
-            MLList.set("coarse: max size",128);
+            MLList.set("coarse: max size",1000);
 
             MLList.set("ML output",10);
         }
@@ -217,9 +222,9 @@ namespace polysolve
         MLList.set("PDE equations",numPDEs);
         
         //Set null space
+
         // if (true)
         // {
-        // double *rbm;
         // int n=test_vertices.rows();
         // int NRbm=0;
         // int NscalarDof=0;
@@ -238,30 +243,7 @@ namespace polysolve
         //     ML_Coord2RBM(n,test_vertices.col(0).data(),test_vertices.col(1).data(),test_vertices.col(2).data(),rbm,numPDEs,NscalarDof);
         // }
 
-        // ////////////////////////////////////////////////////////////////////////////////
-        //     int ndim=numPDEs;
-        //     std::vector<double> coo;
-        //     std::vector<double> null;
-        //     coo.resize(test_vertices.cols()*test_vertices.rows());
-        //         for (size_t i = 0; i < test_vertices.rows(); i++)
-        //         {
-        //             for (size_t j = 0; j < test_vertices.cols(); j++)
-        //             {
-        //                 coo[j+i*test_vertices.cols()]=test_vertices(i,j);
-        //             }
-
-        //         }
-        //     rigid_body_mode(ndim, coo, null);        
-        // double *tmp_rbm=new double[n*(NRbm+NscalarDof)*(numPDEs+NscalarDof)];
-        // for (size_t i = 0; i < n*(NRbm+NscalarDof)*(numPDEs+NscalarDof); i++)
-        // {
-        //     tmp_rbm[i]=null[i];
-        // }
-        
-        // // AMGCL Nullspace vector
-        // // MLList.set("null space: vectors",rbm);
-        // // MLList.set("null space: vectors",null.data());
-        // MLList.set("null space: vectors",tmp_rbm);
+        // MLList.set("null space: vectors",rbm);
         // MLList.set("null space: dimension", NRbm);        
         // MLList.set("null space: type", "pre-computed");
         // MLList.set("aggregation: threshold",0.00);
@@ -269,7 +251,7 @@ namespace polysolve
 
         ///////////////////////////////////////////////////////////////////////
 
-        if (true)
+        if (is_nullspace_)
         {
             if (test_vertices.cols()==3)
             {

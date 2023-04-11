@@ -99,7 +99,7 @@ namespace polysolve
                 //         out["precond"]["psolver"]["solver"]["tol"] = 10 * out["solver"]["tol"].get<double>();
                 //     }
                 // }
-            }
+            }            
         }
     } // namespace
 
@@ -194,19 +194,7 @@ namespace polysolve
         iterations_ = 0;
         residual_error_ = 0;
     }
-    void LinearSolverAMGCL::factorize(const StiffnessMatrix &Ain, const std::vector<double> &coo)
-    {
-        if (block_size_ == 2)
-        {
-            block2_solver_.factorize(Ain,coo);
-            return;
-        }
-        else if (block_size_ == 3)
-        {
-            block3_solver_.factorize(Ain,coo);
-            return;
-        }
-    }
+
     
 
     ////////////////////////////////////////////////////////////////////////////////
@@ -227,10 +215,10 @@ namespace polysolve
         }
         assert(result.size() == rhs.size());
         std::vector<double> _rhs(rhs.data(), rhs.data() + rhs.size());
-        if (is_test)
-        {
-            result=Eigen::VectorXd::Random(result.size());
-        }
+        // if (is_test)
+        // {
+        //     result=Eigen::VectorXd::Random(result.size());
+        // }
 
         std::vector<double> x(result.data(), result.data() + result.size());
         auto rhs_b = Backend::copy_vector(_rhs, backend_params_);
@@ -306,12 +294,12 @@ namespace polysolve
         if (true)
         {
             std::vector<double> coo;
-            coo.resize(test_vertices.cols()*test_vertices.rows());
+            coo.resize(BLOCK_SIZE*test_vertices.rows());
             for (size_t i = 0; i < test_vertices.rows(); i++)
             {
-                for (size_t j = 0; j < test_vertices.cols(); j++)
+                for (size_t j = 0; j < BLOCK_SIZE; j++)
                 {
-                    coo[j+i*3]=test_vertices(i,j);
+                    coo[j+i*BLOCK_SIZE]=test_vertices(i,j);
                 }
                 
             }
@@ -321,10 +309,10 @@ namespace polysolve
             pt_params.put("precond.coarsening.nullspace.cols", nv);
             pt_params.put("precond.coarsening.nullspace.rows", Ain.rows());
             pt_params.put("precond.coarsening.nullspace.B",    &null[0]);
+            pt_params.put("precond.coarsening.aggr.eps_strong", 0.00);
         }
         ///////////////////////////////////////////////////////
 
-        // pt_params.put("precond.coarsening.aggr.eps_strong", 0.08);
         auto A = std::tie(numRows, ia, ja, a);
         auto Ab = amgcl::adapter::block_matrix<dmat_type>(A);
         prof.tic("setup");
@@ -334,46 +322,6 @@ namespace polysolve
         residual_error_ = 0;
     }
 
-    template <int BLOCK_SIZE>
-    void LinearSolverAMGCL_Block<BLOCK_SIZE>::factorize(const StiffnessMatrix &Ain, const std::vector<double> &coo)
-    {
-        assert(precond_num_ > 0);
-
-        int numRows = Ain.rows();
-
-        WrappedArray<StiffnessMatrix::StorageIndex> ia(Ain.outerIndexPtr(), numRows + 1);
-        WrappedArray<StiffnessMatrix::StorageIndex> ja(Ain.innerIndexPtr(), Ain.nonZeros());
-        WrappedArray<StiffnessMatrix::Scalar> a(Ain.valuePtr(), Ain.nonZeros());
-
-        if (params_["precond"]["class"] == "schur_pressure_correction")
-        {
-            std::vector<char> pmask(numRows, 0);
-            for (size_t i = precond_num_; i < numRows; ++i)
-                pmask[i] = 1;
-            params_["precond"]["pmask"] = pmask;
-        }
-
-        // AMGCL takes the parameters as a Boost property_tree (i.e., another JSON data structure)
-        std::stringstream ss_params;
-        ss_params << params_;
-        std::cout<<ss_params.str()<<std::endl;
-        boost::property_tree::ptree pt_params;
-        boost::property_tree::read_json(ss_params, pt_params);        
-        int nv;
-        nv = amgcl::coarsening::rigid_body_modes(BLOCK_SIZE, coo, null); // TODO: COO requires to change the form of vector<double>
-        pt_params.put("precond.coarsening.nullspace.cols", nv);
-        pt_params.put("precond.coarsening.nullspace.rows", Ain.rows());
-        pt_params.put("precond.coarsening.nullspace.B",    &null[0]);
-        pt_params.put("precond.coarsening.aggr.eps_strong", 0.08);
-        // printTree(pt_params,3);
-        auto A = std::tie(numRows, ia, ja, a);
-        auto Ab = amgcl::adapter::block_matrix<dmat_type>(A);
-        prof.tic("setup");
-        solver_ = std::make_unique<Solver>(Ab, pt_params);
-        prof.toc("setup");
-        iterations_ = 0;
-        residual_error_ = 0;
-    }
 
     ////////////////////////////////////////////////////////////////////////////////
 

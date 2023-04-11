@@ -47,9 +47,6 @@
 // and CSC are the same. If the matrix is not symmetric and you pass in a
 // column-major matrix, the solver will actually solve A^T x = b.
 //
-
-extern Eigen::MatrixXd test_vertices;
-
 namespace polysolve
 {
 
@@ -80,7 +77,6 @@ namespace polysolve
 
         // Factorize system matrix
         virtual void factorize(const StiffnessMatrix &A) override;
-        void factorize(const StiffnessMatrix &A, const std::vector<double> &coo);
 
         // Solve the linear system Ax = b
         virtual void solve(const Ref<const VectorXd> b, Ref<VectorXd> x) override;

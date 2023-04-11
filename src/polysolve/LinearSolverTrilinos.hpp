@@ -83,6 +83,7 @@ namespace polysolve
         double conv_tol_ = 1e-8;
         size_t iterations_;
         double residual_error_;
+        bool is_nullspace_ = true;
 
     private:
         int precond_num_;

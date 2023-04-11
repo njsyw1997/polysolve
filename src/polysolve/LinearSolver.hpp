@@ -16,6 +16,7 @@ using json = nlohmann::json;
     Base &operator=(const Base &) = delete;
 
 extern Eigen::MatrixXd test_vertices;
+// extern std::vector<int> test_boundary_nodes;
 
 ////////////////////////////////////////////////////////////////////////////////
 // TODO:

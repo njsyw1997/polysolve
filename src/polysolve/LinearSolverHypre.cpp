@@ -98,62 +98,6 @@ void set_value(HYPRE_IJVector &vec, int i, double value){
     const HYPRE_Complex v[1] = {value};
     HYPRE_IJVectorSetValues(vec, 1, index, v);
 }
-void compute_rbm(Eigen::MatrixXd &V, int ndim, HYPRE_ParVector *interp_vecs, HYPRE_IJVector *ij_rbm)
-{
-    std::vector<double> coo;
-    std::vector<double> null;
-    coo.resize(V.cols()*V.rows());
-        for (size_t i = 0; i < V.rows(); i++)
-        {
-            for (size_t j = 0; j < V.cols(); j++)
-            {
-                coo[j+i*3]=V(i,j);
-            }
-            
-        }            
-    rigid_body_modes(ndim, coo, null); // TODO: COO requires to change the form of vector<double>
-    void *object;
-    int ierr=0;
-    int n=V.rows();
-    int nmodes = (ndim == 2 ? 3 : 6);
-    interp_vecs = hypre_CTAlloc(HYPRE_ParVector, ndim, HYPRE_MEMORY_HOST);
-    ij_rbm = hypre_CTAlloc(HYPRE_IJVector, ndim, HYPRE_MEMORY_HOST);
-    for (size_t dim = 0; dim < ndim; dim++)
-    {
-#ifdef HYPRE_WITH_MPI
-        HYPRE_IJVectorCreate(MPI_COMM_WORLD, 0, n*nmodes-1, &ij_rbm[dim]);
-#else
-        HYPRE_IJVectorCreate(hypre_MPI_COMM_WORLD, 0,n*nmodes-1, &ij_rbm[dim]);
-#endif
-        HYPRE_IJVectorSetObjectType(ij_rbm[dim], HYPRE_PARCSR);
-        HYPRE_IJVectorInitialize(ij_rbm[dim]);
-    }    
-    for (size_t i = 0; i < n; i++)
-        {
-        for (size_t dim = 0; dim < ndim; dim++){
-            for (size_t j = 0; j < nmodes; j++)
-            {
-                const HYPRE_Int index[1] = {n+j};
-                const HYPRE_Complex v[1] = {null[n*ndim*nmodes+dim*nmodes+j]};
-                HYPRE_IJVectorSetValues(ij_rbm[dim], 1, index, v);
-                // set_value(ij_rbm[dim],n+j,null[n*ndim*nmodes+dim*nmodes+j]);
-            }        
-            
-        }      
-        
-    }
-    for (size_t dim = 0; dim <ndim; dim++)
-    {
-        HYPRE_IJVectorAssemble(ij_rbm[dim]);
-        ierr=HYPRE_IJVectorGetObject(ij_rbm[dim], &object);
-        interp_vecs[dim] = (HYPRE_ParVector) object;
-    } 
-    if (ierr)
-    {
-        hypre_printf("ERROR: Problem reading in rbm!\n");
-        exit(1);
-    }
-}
 namespace polysolve
 {
     
@@ -198,9 +142,9 @@ namespace polysolve
             {
                 max_iter_ = params["Hypre"]["max_iter"];
             }
-            if (params["Hypre"].contains("smoothed_aggregation"))
+            if (params["Hypre"].contains("nullspace"))
             {
-                is_sa = params["Hypre"]["smoothed_aggregation"];
+                is_nullspace = params["Hypre"]["nullspace"];
             }
             if (params["Hypre"].contains("pre_max_iter"))
             {
@@ -291,7 +235,7 @@ namespace polysolve
             // Chebyshev Settings
             int eig_est = 100; // Number of CG iterations to determine the smallest and largest eigenvalue
             double ratio = 0.03;
-            int relax_coarse = 9; // smoother on the coarsest grid: 9=Gauss Elimination
+            int relax_coarse = 9; // smoother on the coarsest grid: 9=Gauss Elimination 15=CG
 
             HYPRE_BoomerAMGSetCoarsenType(amg_precond, coarsen_type);
             // HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
@@ -309,8 +253,6 @@ namespace polysolve
             HYPRE_BoomerAMGSetChebyOrder(amg_precond, 4);
             // Fraction of the spectrum to use for the Chebyshev smoother. The default is .3 (i.e., damp on upper 30% of the spectrum).
             HYPRE_BoomerAMGSetChebyFraction(amg_precond, ratio);
-            // HYPRE_BoomerAMGSetChebyFraction(amg_precond, 0.03);
-
             // Settings from AMGCL
             HYPRE_BoomerAMGSetChebyScale(amg_precond, 1);
             HYPRE_BoomerAMGSetChebyVariant(amg_precond, 0);
@@ -356,7 +298,6 @@ namespace polysolve
             // Elasticity interpolation options
             int interp_vec_variant = 2;    // 1 = GM-1, 2 = GM-2, 3 = LN
             int q_max = 5;                 // max elements per row for each Q
-            int smooth_interp_vectors = 1; // smooth the rigid-body modes?
 
             // Optionally pre-process the interpolation matrix through iterative weight
             // refinement (this is generally applicable for any system)
@@ -365,7 +306,8 @@ namespace polysolve
             HYPRE_BoomerAMGSetNodal(amg_precond, nodal);
             HYPRE_BoomerAMGSetNodalDiag(amg_precond, nodal_diag);
             HYPRE_BoomerAMGSetInterpVecVariant(amg_precond, interp_vec_variant);
-            HYPRE_BoomerAMGSetInterpVecQMax(amg_precond, q_max);
+            // HYPRE_BoomerAMGSetInterpVecQMax(amg_precond, q_max);
+
             // HYPRE_BoomerAMGSetSmoothInterpVectors(amg_precond, smooth_interp_vectors);
             // HYPRE_BoomerAMGSetInterpRefine(amg_precond, interp_refine);
         }
@@ -456,7 +398,15 @@ namespace polysolve
         if (dimension_ > 1)
         {
             HypreBoomerAMG_SetElasticityOptions(precond, dimension_);
-            // compute_rbm(test_vertices,dimension_,interp_vecs,ij_rbm);
+            /////Null space vector
+            if (is_nullspace)
+            {           
+            HYPRE_BoomerAMGSetStrongThreshold(precond, 0.25);
+            HYPRE_BoomerAMGSetRelaxOrder(precond,0);
+            HYPRE_BoomerAMGSetNodalDiag(precond, 0);
+            HYPRE_BoomerAMGSetTruncFactor(precond, 0.0);
+            HYPRE_BoomerAMGSetMaxRowSum(precond, 1.0);
+
             int ndim=dimension_;
             std::vector<double> coo;
             std::vector<double> null;
@@ -470,7 +420,6 @@ namespace polysolve
                     
                 }            
             rigid_body_modes(ndim, coo, null); // TODO: COO requires to change the form of vector<double>
-            void *object;
             int ierr=0;
             int n=test_vertices.rows();
             int nmodes = (ndim == 2 ? 3 : 6);
@@ -493,39 +442,23 @@ namespace polysolve
                     const HYPRE_Int index[1] = {j};
                     const HYPRE_Complex v[1] = {null[i*coo.size()+j]};
                     HYPRE_IJVectorSetValues(ij_rbm[i], 1, index, v);
-                    // set_value(ij_rbm[dim],n+j,null[n*ndim*nmodes+dim*nmodes+j]);
                 }           
             }
             for (size_t mode = 0; mode <nmodes; mode++)
             {
                 HYPRE_IJVectorAssemble(ij_rbm[mode]);
-                ierr=HYPRE_IJVectorGetObject(ij_rbm[mode], &object);
-                interp_vecs[mode] = (HYPRE_ParVector) object;
+                ierr=HYPRE_IJVectorGetObject(ij_rbm[mode], (void **)&interp_vecs[mode]);
             } 
             if (ierr)
             {
-                hypre_printf("ERROR: Problem reading in rbm!\n");
+                hypre_printf("ERROR: Problem making rbm!\n");
                 exit(1);
             }
             HYPRE_BoomerAMGSetInterpVectors(precond, nmodes,interp_vecs);
         }
+        ////////////////////////////////////////////////////////
 
-        /*TO DO: Smoothed Aggregation*/
-        
-        // HYPRE_LSI_MLICreate(MPI_COMM_WORLD, &precond);
-        // HYPRE_LSI_MLISetParams(precond, "MLI strengthThreshold 0.08");
-        // if (is_sa)
-        // To do: Smoothed aggregation cmake
-        // if (false)
-        // {
-        //     HYPRE_PCGSetPrecond(solver,
-        //             (HYPRE_PtrToSolverFcn) HYPRE_LSI_MLISolve,
-        //             (HYPRE_PtrToSolverFcn) HYPRE_LSI_MLISetup,
-        //             precond);
-        // }
-        // else{
-        //     HYPRE_PCGSetPrecond(solver, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSolve, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSetup, precond);
-        // } 
+        }
 
         /* Set the PCG preconditioner */
         HYPRE_PCGSetPrecond(solver, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSolve, (HYPRE_PtrToSolverFcn)HYPRE_BoomerAMGSetup, precond);      
@@ -558,12 +491,21 @@ namespace polysolve
 
         HYPRE_IJVectorDestroy(b);
         HYPRE_IJVectorDestroy(x);
-        for (int i = 0; i < dimension_; i++)
+
+        // Destroy Nullspace vectors
+        if (is_nullspace)
         {
-            HYPRE_IJVectorDestroy(ij_rbm[i]);
+            int nmodes=(dimension_==2? 3: 6);
+            for (int i = 0; i < nmodes; i++)
+            {
+                HYPRE_IJVectorDestroy(ij_rbm[i]);
+            }
+            hypre_TFree(ij_rbm, HYPRE_MEMORY_HOST);
+            hypre_TFree(interp_vecs, HYPRE_MEMORY_HOST);
         }
-        hypre_TFree(ij_rbm, HYPRE_MEMORY_HOST);
-        hypre_TFree(interp_vecs, HYPRE_MEMORY_HOST);
+        ///////////////////////////
+        
+
     }
 
     ////////////////////////////////////////////////////////////////////////////////
