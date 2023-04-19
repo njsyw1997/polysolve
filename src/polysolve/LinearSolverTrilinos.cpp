@@ -255,17 +255,19 @@ namespace polysolve
         {
             if (test_vertices.cols()==3)
             {
+                reduced_vertices=remove_boundary_vertices(test_vertices,test_boundary_nodes);
                 MLList.set("null space: type","elasticity from coordinates");
-                MLList.set("x-coordinates", test_vertices.col(0).data());
-                MLList.set("y-coordinates", test_vertices.col(1).data());
-                MLList.set("z-coordinates", test_vertices.col(2).data());
+                MLList.set("x-coordinates", reduced_vertices.col(0).data());
+                MLList.set("y-coordinates", reduced_vertices.col(1).data());
+                MLList.set("z-coordinates", reduced_vertices.col(2).data());
                 MLList.set("aggregation: threshold",0.00);
             }
             if (test_vertices.cols()==2)
             {
+                reduced_vertices=remove_boundary_vertices(test_vertices,test_boundary_nodes);
                 MLList.set("null space: type","elasticity from coordinates");
-                MLList.set("x-coordinates", test_vertices.col(0).data());
-                MLList.set("y-coordinates", test_vertices.col(1).data());
+                MLList.set("x-coordinates", reduced_vertices.col(0).data());
+                MLList.set("y-coordinates", reduced_vertices.col(1).data());
                 MLList.set("aggregation: threshold",0.00);
             }           
 

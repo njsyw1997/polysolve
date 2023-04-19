@@ -84,6 +84,7 @@ namespace polysolve
         size_t iterations_;
         double residual_error_;
         bool is_nullspace_ = true;
+        Eigen::MatrixXd reduced_vertices;
 
     private:
         int precond_num_;
