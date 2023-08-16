@@ -181,7 +181,7 @@ namespace polysolve
 #ifdef HYPRE_WITH_MPI
         HYPRE_IJMatrixCreate(MPI_COMM_WORLD, 0, rows - 1, 0, cols - 1, &A);
 #else
-        HYPRE_IJMatrixCreate(hypre_MPI_COMM_WORLD, 0, rows - 1, 0, cols - 1, &A);
+        HYPRE_IJMatrixCreate(0, 0, rows - 1, 0, cols - 1, &A);
 #endif
         HYPRE_IJMatrixSetPrintLevel(A, 2);
         HYPRE_IJMatrixSetObjectType(A, HYPRE_PARCSR);
@@ -327,7 +327,7 @@ namespace polysolve
 #ifdef HYPRE_WITH_MPI
         HYPRE_IJVectorCreate(MPI_COMM_WORLD, 0, rhs.size() - 1, &b);
 #else
-        HYPRE_IJVectorCreate(hypre_MPI_COMM_WORLD, 0, rhs.size() - 1, &b);
+        HYPRE_IJVectorCreate(0, 0, rhs.size() - 1, &b);
 #endif
         HYPRE_IJVectorSetObjectType(b, HYPRE_PARCSR);
         HYPRE_IJVectorInitialize(b);
@@ -364,7 +364,7 @@ namespace polysolve
 #ifdef HYPRE_WITH_MPI
         HYPRE_ParCSRPCGCreate(MPI_COMM_WORLD, &solver);
 #else
-        HYPRE_ParCSRPCGCreate(hypre_MPI_COMM_WORLD, &solver);
+        HYPRE_ParCSRPCGCreate(0, &solver);
 #endif
 
         /* Set some parameters (See Reference Manual for more parameters) */

@@ -48,7 +48,12 @@ function(amgcl_import_target)
     set(CMAKE_FIND_PACKAGE_PREFER_CONFIG TRUE)
 
     # Ready to include third-party lib
-    FetchContent_MakeAvailable(amgcl)
+    include(CPM)
+    CPMAddPackage(
+        NAME amgcl
+        GITHUB_REPOSITORY ddemidov/amgcl
+        GIT_TAG 1.4.3
+    )
 
     target_link_libraries(amgcl INTERFACE Boost::boost)
 endfunction()
