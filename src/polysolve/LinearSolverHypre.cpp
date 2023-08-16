@@ -144,7 +144,7 @@ namespace polysolve
             }
             if (params["Hypre"].contains("nullspace"))
             {
-                is_nullspace = params["Hypre"]["nullspace"];
+                is_nullspace_ = params["Hypre"]["nullspace"];
             }
             if (params["Hypre"].contains("pre_max_iter"))
             {
@@ -227,7 +227,7 @@ namespace polysolve
             // AMG relaxation options:
             int relax_type = 16;  // 8 = l1-GS, 6 = symm. GS, 3 = GS, 16 = Chebyshev, 18 = l1-Jacobi
             int relax_sweeps = 1; // relaxation sweeps on each level
-            int print_level = 3; // print AMG iterations? 1 = no, 2 = yes
+            int print_level = 1; // print AMG iterations? 1 = no, 2 = yes
             // Additional options:  
            
             int max_levels = 25; // max number of levels in AMG hierarchy
@@ -399,7 +399,7 @@ namespace polysolve
         {
             HypreBoomerAMG_SetElasticityOptions(precond, dimension_);
             /////Null space vector
-            if (is_nullspace)
+            if (is_nullspace_)
             {           
             HYPRE_BoomerAMGSetStrongThreshold(precond, 0.25);
             HYPRE_BoomerAMGSetRelaxOrder(precond,0);
@@ -493,7 +493,7 @@ namespace polysolve
         HYPRE_IJVectorDestroy(x);
 
         // Destroy Nullspace vectors
-        if (is_nullspace)
+        if (is_nullspace_)
         {
             int nmodes=(dimension_==2? 3: 6);
             for (int i = 0; i < nmodes; i++)

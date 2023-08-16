@@ -139,6 +139,10 @@ namespace polysolve
             {
                 conv_tol_ = params["Trilinos"]["tolerance"];
             }
+            if (params["Trilinos"].contains("is_nullspace"))
+            {
+                is_nullspace_ = params["Trilinos"]["is_nullspace"];
+            }
         }
     }
 
@@ -160,7 +164,7 @@ namespace polysolve
         int indexBase=0;
         int numGlobalElements = Arow.nonZeros();
         int numGlobalRows=Arow.rows();
-        Epetra_Map *rowMap=NULL;
+        
         int numNodes= numGlobalRows /numPDEs;
         if ((numGlobalRows - numNodes * numPDEs) != 0 && !mypid){
             throw std::runtime_error("Number of matrix rows is not divisible by #dofs");
@@ -169,6 +173,8 @@ namespace polysolve
         int nproc = CommPtr->NumProc();
         if (CommPtr->MyPID() < nproc-1) numMyNodes = numNodes / nproc;
         else numMyNodes = numNodes - (numNodes/nproc) * (nproc-1);
+        delete rowMap;
+        delete A;
         rowMap = new Epetra_Map(numGlobalRows,numMyNodes*numPDEs,indexBase,(*CommPtr));
 
         A = new Epetra_CrsMatrix(Copy,*rowMap,0); //Can allocate memory for each row in advance
@@ -209,7 +215,7 @@ namespace polysolve
             //Coarser Settings
             MLList.set("coarse: max size",1000);
 
-            MLList.set("ML output",10);
+            MLList.set("ML output",0);
         }
     }
 
@@ -273,8 +279,8 @@ namespace polysolve
 
         }
 
-
-        ML_Epetra::MultiLevelPreconditioner* MLPrec = new ML_Epetra::MultiLevelPreconditioner(*A, MLList);
+        delete MLPrec;
+        MLPrec = new ML_Epetra::MultiLevelPreconditioner(*A, MLList);
         Epetra_Vector x(A->RowMap());
         Epetra_Vector b(A->RowMap());
         for (size_t i = 0; i < rhs.size(); i++)
@@ -289,9 +295,14 @@ namespace polysolve
         AztecOO solver(Problem);
         solver.SetAztecOption(AZ_solver, AZ_cg);
         solver.SetPrecOperator(MLPrec);
-        solver.SetAztecOption(AZ_output, AZ_all);
+        solver.SetAztecOption(AZ_output, AZ_last);
 
-        solver.Iterate(max_iter_, conv_tol_ );
+       int status= solver.Iterate(max_iter_, conv_tol_ );
+        if (status!=0 && status!=-3)
+        {
+            throw std::runtime_error("Early termination, not SPD");
+        }
+        
 
         //Calculate a final residual
         // Epetra_Vector workvec(A->RowMap());
@@ -307,22 +318,30 @@ namespace polysolve
             // std::cout<<"Max iterations "<<max_iter_<<std::endl;
             // std::cout<<"Trilinos ScaleResidual is is "<<solver.TrueResidual ()<<std::endl;
             // std::cout<<"Trilinos ScaleResidual is "<<solver.ScaledResidual ()<<std::endl;
-            std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;
+            // std::cout<<"Iterations are "<<solver.NumIters()<<std::endl;
             residual_error_=solver.ScaledResidual ();
             iterations_=solver.NumIters();
         }
+        
+        // if (iterations_>175)
+        // {
+        //    exit();
+        // }
+        
+
 
         for (size_t i = 0; i < rhs.size(); i++)
         {
             result[i]=x[i];
         }
-        delete MLPrec;
+   
     }
 
     LinearSolverTrilinos:: ~LinearSolverTrilinos()
     {
-
         delete A;
+        delete rowMap;
+        delete MLPrec;   
 #ifdef HAVE_MPI
         MPI_Finalize() ;
 #endif

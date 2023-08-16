@@ -23,10 +23,17 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
     message(STATUS "Using local options file: ${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake")
     include(${CMAKE_CURRENT_SOURCE_DIR}/PolySolveOptions.cmake)
 endif()
-set(FETCHCONTENT_SOURCE_DIR_AMGCL "/home/yiwei/amgcl" CACHE PATH "When not empty, overrides where to find pre-populated content for amgcl")
+
 # PATH to Trilinos lib, need to update for installing trilinos in polysolve
 set(CMAKE_PREFIX_PATH "/home/yiwei/Trilinos/lib")
 
+# Set the install perfix to the polysolve source directory to avoid permission problem
+# TODO: Only change trilinos switch install prefix to its own build directory
+# set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/install CACHE PATH "Set the non system path to avoid permission problem")
+# message(STATUS "CMAKE_INSTALL_PREFIX: ${CMAKE_INSTALL_PREFIX}")
+
+
+# set(FETCHCONTENT_SOURCE_DIR_AMGCL "/home/yiwei/amgcl" CACHE PATH "When not empty, overrides where to find pre-populated content for amgcl")
 ################################################################################
 
 project(PolySolve
@@ -46,6 +53,7 @@ option(POLYSOLVE_WITH_HYPRE         "Enable hypre"                              
 option(POLYSOLVE_WITH_AMGCL         "Use AMGCL"                                   ON)
 option(POLYSOLVE_WITH_SPECTRA       "Enable computing spectrum"                   ON)
 option(POLYSOLVE_WITH_TRILINOS      "Enable trilinos solver"                      ON) 
+option(BUILD_TRILINOS_FROM_SOURCE   "Build trilinos from source"                  OFF)
 
 # Sanitizer options
 option(POLYSOLVE_SANITIZE_ADDRESS   "Sanitize Address"                           OFF)
@@ -211,21 +219,28 @@ endif()
 
 # Trilinos
 if (POLYSOLVE_WITH_TRILINOS)
-    # cmake -D CMAKE_PREFIX_PATH=/home/yiwei/Trilinos/lib   
-    find_package(Trilinos REQUIRED COMPONENTS ML Epetra)# Only for local build, fix it when publish 
-    MESSAGE("\nFound Trilinos!  Here are the details: ")
-    MESSAGE("   Trilinos_DIR = ${Trilinos_DIR}")
-    MESSAGE("   Trilinos_VERSION = ${Trilinos_VERSION}")
-    MESSAGE("   Trilinos_PACKAGE_LIST = ${Trilinos_PACKAGE_LIST}")
-    MESSAGE("   Trilinos_LIBRARIES = ${Trilinos_LIBRARIES}")
-    MESSAGE("   Trilinos_INCLUDE_DIRS = ${Trilinos_INCLUDE_DIRS}")
-    MESSAGE("   Trilinos_TPL_LIST = ${Trilinos_TPL_LIST}")
-    MESSAGE("   Trilinos_TPL_LIBRARIES = ${Trilinos_TPL_LIBRARIES}")
-    MESSAGE("   Trilinos_BUILD_SHARED_LIBS = ${Trilinos_BUILD_SHARED_LIBS}")
-    MESSAGE("End of Trilinos details\n")   
-    target_link_libraries(polysolve PUBLIC ${Trilinos_LIBRARIES})
-    target_include_directories(polysolve PUBLIC ${Trilinos_INCLUDE_DIRS})
-    target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_TRILINOS)
+    # find_package(Trilinos REQUIRED COMPONENTS ML Epetra)# Only for local build, fix it when publish 
+    # MESSAGE("\nFound Trilinos!  Here are the details: ")
+    # MESSAGE("   Trilinos_DIR = ${Trilinos_DIR}")
+    # MESSAGE("   Trilinos_VERSION = ${Trilinos_VERSION}")
+    # MESSAGE("   Trilinos_PACKAGE_LIST = ${Trilinos_PACKAGE_LIST}")
+    # MESSAGE("   Trilinos_LIBRARIES = ${Trilinos_LIBRARIES}")
+    # MESSAGE("   Trilinos_INCLUDE_DIRS = ${Trilinos_INCLUDE_DIRS}")
+    # MESSAGE("   Trilinos_TPL_LIST = ${Trilinos_TPL_LIST}")
+    # MESSAGE("   Trilinos_TPL_LIBRARIES = ${Trilinos_TPL_LIBRARIES}")
+    # MESSAGE("   Trilinos_BUILD_SHARED_LIBS = ${Trilinos_BUILD_SHARED_LIBS}")
+    # MESSAGE("End of Trilinos details\n")   
+    # # target_link_libraries(polysolve PUBLIC ${Trilinos_LIBRARIES})
+    # target_link_libraries(polysolve PUBLIC Trilinos::all_libs)
+    # target_include_directories(polysolve PUBLIC ${Trilinos_INCLUDE_DIRS})
+    # target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_TRILINOS)
+    include(trilinos)  
+    if(TARGET Trilinos::Trilinos)
+        target_link_libraries(polysolve PUBLIC Trilinos::Trilinos)
+        target_compile_definitions(polysolve PUBLIC -DPOLYSOLVE_WITH_TRILINOS)
+    else()
+        message(WARNING "Trilinos not found, solver will not be available.")
+    endif()
 endif()
 
 ################################################################################

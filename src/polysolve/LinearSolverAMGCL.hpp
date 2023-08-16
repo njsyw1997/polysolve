@@ -93,10 +93,12 @@ namespace polysolve
         std::unique_ptr<Solver> solver_;
         json params_;
         typename Backend::params backend_params_;
+        bool is_nullspace_=true;
         int precond_num_;
         std::vector<double> null;
         //Timer, test only
         amgcl::profiler<> prof;
+        Eigen::MatrixXd reduced_vertices;
 
         // Output info
         size_t iterations_;

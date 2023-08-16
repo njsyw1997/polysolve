@@ -33,6 +33,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 Eigen::MatrixXd test_vertices;
+Eigen::MatrixXd init_vertices;
 std::vector<int> test_boundary_nodes;
 Eigen::MatrixXd remove_boundary_vertices(const Eigen::MatrixXd &vertices, const std::vector<int> &boundary_nodes)
 {

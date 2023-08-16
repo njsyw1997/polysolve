@@ -291,15 +291,16 @@ namespace polysolve
         boost::property_tree::read_json(ss_params, pt_params);
 
         //  Set null space
-        if (true)
+        if (is_nullspace_)
         {
             std::vector<double> coo;
-            coo.resize(BLOCK_SIZE*test_vertices.rows());
-            for (size_t i = 0; i < test_vertices.rows(); i++)
+            reduced_vertices=remove_boundary_vertices(test_vertices,test_boundary_nodes);
+            coo.resize(BLOCK_SIZE*reduced_vertices.rows());
+            for (size_t i = 0; i < reduced_vertices.rows(); i++)
             {
                 for (size_t j = 0; j < BLOCK_SIZE; j++)
                 {
-                    coo[j+i*BLOCK_SIZE]=test_vertices(i,j);
+                    coo[j+i*BLOCK_SIZE]=reduced_vertices(i,j);
                 }
                 
             }

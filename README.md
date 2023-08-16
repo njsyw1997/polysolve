@@ -172,6 +172,8 @@ For a more details and options refer to the [AMGCL documentation](https://amgcl.
 | 13    | complex and nonsymmetric                |
 
 ### Trilinos Cmake
+Make Trilinos by yourself is recommended. The following is a sample cmake to install required packages in cmake.
+```cmake
 cmake \
 -DTrilinos_ENABLE_Fortran=OFF \
 -DTPL_ENABLE_MPI=OFF \
@@ -183,13 +185,6 @@ cmake \
 <path to Trilinos source>
 
 make install
+```
+You can also build Trilinos from source automatically with setting `BUILD_TRILINOS_FROM_SOURCE` in [CMakeLists.txt](CMakeLists.txt). You have to set your `CMAKE_INSTALL_PREFIX` mannualy to avoid permission problem.
 
-cmake \
--DTrilinos_ENABLE_Fortran=OFF \
--DTPL_ENABLE_MPI=OFF \
--DTrilinos_ENABLE_OpenMP=ON \
--DTrilinos_ENABLE_Belos=ON \
--DTrilinos_ENABLE_Tpetra=ON \
--DTrilinos_ENABLE_ML=ON \
--DCMAKE_INSTALL_PREFIX=/home/yiwei/newTrilinos/lib \
-/home/yiwei/Trilinos

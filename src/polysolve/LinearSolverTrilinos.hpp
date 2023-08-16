@@ -85,10 +85,12 @@ namespace polysolve
         double residual_error_;
         bool is_nullspace_ = true;
         Eigen::MatrixXd reduced_vertices;
+        ML_Epetra::MultiLevelPreconditioner* MLPrec=NULL;
+        Epetra_Map *rowMap=NULL;
 
     private:
         int precond_num_;
-        Epetra_CrsMatrix *A;
+        Epetra_CrsMatrix *A=NULL;
 #ifdef HAVE_MPI
         Epetra_MpiComm *CommPtr;
 #else

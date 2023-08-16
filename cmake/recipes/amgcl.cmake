@@ -19,8 +19,8 @@ message(STATUS "Third-party: creating target 'amgcl::amgcl'")
 include(FetchContent)
 FetchContent_Declare(
     amgcl
-    GIT_REPOSITORY https://github.com/ddemidov/amgcl.git
-    GIT_TAG 1.4.3
+    GIT_REPOSITORY https://github.com/njsyw1997/amgcl.git
+    GIT_TAG ab2e3735ed953fa0ffb226b4a2c33f86c8e777b2
     GIT_SHALLOW TRUE
 )
 
